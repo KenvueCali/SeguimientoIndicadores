@@ -52,7 +52,8 @@ let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, tab='post', msg='
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const j=await r.json(); if(!r.ok) throw new Error(j.message||'Error de conexión'); return j;
+  const tx=await r.text(); let j=null; try{j=tx?JSON.parse(tx):null}catch(e){j={message:tx}}
+  if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
 }
 async function load(){
   try{
