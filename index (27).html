@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranking de indicadores</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#0f2a43;--mute:#5b6f82;--line:#d5dee8;--teal:#0e8f83;--gold:#e0a526;--coral:#d6543f}
+@media(prefers-color-scheme:dark){:root{--bg:#0c1a29;--card:#12263a;--ink:#e8eef5;--mute:#93a7ba;--line:#24405a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Bricolage Grotesque',system-ui,sans-serif;padding:16px}
+main{max-width:760px;margin:0 auto}
+h1,h2,h3{margin:0;line-height:1.15}
+h2{font-size:1.15rem;margin:28px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px}
+.hero{background:var(--ink);color:#fff;border-radius:10px;padding:22px;margin-bottom:6px}
+.hero b{font-size:3.4rem;font-weight:800;display:block;line-height:1}
+.hero span{color:#b9c7d6}
+input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;margin:4px 0 8px}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 16px;background:var(--teal);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--mute);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.track{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 4px}
+.track i{display:block;height:100%;background:var(--teal);border-radius:6px;transition:width .6s}
+.track.ok i{background:var(--gold)}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.rk{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:9px 12px;border-radius:8px}
+.rk.yo{background:var(--teal);color:#fff;font-weight:600}
+.rk .n{font-weight:800;font-size:1.1rem}
+.mute{color:var(--mute);font-size:.9rem}
+.tag{font-size:.8rem;padding:2px 8px;border-radius:20px;background:var(--line)}
+.tag.aprobada{background:var(--gold);color:#222}.tag.feedback{background:var(--coral);color:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.tabs button.on{background:var(--ink);color:#fff}
+.err{color:var(--coral);font-weight:600;min-height:1.4em}
+.ok{color:var(--teal);font-weight:600}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+// ====== CONFIGURA ESTO (Supabase > Project Settings > API) ======
+const URL_='https://ucpifysuxxgyiyahfkgg.supabase.co';
+const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjcGlmeXN1eHhneWl5YWhma2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTA0NTQsImV4cCI6MjExMTE4NjQ1NH0.uYTSzRJ_hKwiovyTK-r6meRBnNCQeoKlIWADkM6ED6E';
+// ================================================================
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, tab='post', msg='';
+
+async function rpc(fn,body){
+  const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json(); if(!r.ok) throw new Error(j.message||'Error de conexión'); return j;
+}
+async function load(){
+  try{
+    D=S.a?await rpc('admin_panel',{p_admin:S.clave}):await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
+    sessionStorage.setItem('s',JSON.stringify(S)); draw();
+  }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
+}
+function login(err=''){
+  app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
+  <p class="mute">Ingresa con tu cédula y tu clave.</p>
+  <label>Cédula<input id="c" inputmode="numeric" autocomplete="username"></label>
+  <label>Clave<input id="k" type="password" autocomplete="current-password"></label>
+  <p class="err">${esc(err)}</p><button id="go">Entrar</button>
+  <button class="sec" id="adm" style="margin-left:6px">Soy administrador</button></div>`;
+  $('#go').onclick=()=>{S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
+  $('#adm').onclick=()=>{S={a:1,clave:$('#k').value};load()};
+}
+function out(){S=null;sessionStorage.removeItem('s');login()}
+function draw(){S.a?drawAdmin():drawUser()}
+
+// ---------- Vista de la persona ----------
+function drawUser(){
+  const rk=D.ranking, i=rk.findIndex(x=>x.yo), me=rk[i], pts=me?me.puntos:0;
+  app.innerHTML=`<div class="top"><div><h1>Hola, ${esc(D.nombre)}</h1><span class="mute">Mes ${esc(D.mes)}</span></div><button class="sec" onclick="out()">Salir</button></div>
+  <div class="hero"><span>Tu puesto</span><b>${i+1} de ${rk.length}</b><span>${pts} puntos este mes</span></div>
+  <h2>Incentivos del mes</h2>
+  ${D.incentivos.map(n=>{const f=Math.min(100,pts/n.meta*100),ok=pts>=n.meta;return `<div class="card"><div class="row"><b>${esc(n.nombre)}</b><span>${esc(n.premio)}</span></div>
+  <div class="track ${ok?'ok':''}"><i style="width:${f}%"></i></div>
+  <span class="mute">${ok?'¡Lo lograste!':`Llevas ${pts} de ${n.meta} puntos. Te faltan ${n.meta-pts}.`}</span></div>`}).join('')||'<p class="mute">Aún no hay incentivos definidos para este mes.</p>'}
+  <h2>Ranking</h2><div class="card">${rk.map((x,j)=>`<div class="rk ${x.yo?'yo':''}"><span class="n">${j+1}</span><span>${esc(x.nombre)}</span><span>${x.puntos} pts</span></div>`).join('')}</div>
+  <h2>Mis indicadores</h2>${D.indicadores.map(n=>`<div class="card row"><span>${esc(n.nombre)}<br><span class="mute">${n.puntos} puntos por día cumplido</span></span><b>${n.dias} días · ${n.dias*n.puntos} pts</b></div>`).join('')}
+  <h2>Postular una atención increíble</h2>
+  <div class="card"><p class="mute">Cuéntanos qué pasó y por qué fue excepcional. Si cumple los criterios, suma puntos extra; si no, recibes feedback con un compromiso.</p>
+  <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
+  <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
+  ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
+  <p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}`;
+}
+async function postular(){
+  const t=$('#t').value.trim(); if(!t)return;
+  try{await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_texto:t});msg='Postulación enviada';await load()}catch(e){alert(e.message)}
+}
+
+// ---------- Vista del administrador ----------
+const T={post:'Postulaciones',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
+function drawAdmin(){
+  const v={
+  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b><p>${esc(p.descripcion)}</p>
+    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><input id="p${p.id}" type="number" placeholder="Puntos extra si es increíble">
+    <button onclick="evaluar(${p.id},true)">Aprobar</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
+  dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+    <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (1 cumplió, 0 no cumplió).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
+    <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`,
+  per:()=>`<div class="card"><input id="uc" placeholder="Cédula"><input id="un" placeholder="Nombre"><input id="uk" placeholder="Clave (vacía = no cambiar)">
+    <button onclick="g('admin_usuario',{p_ced:$('#uc').value.trim(),p_nombre:$('#un').value.trim(),p_clave:$('#uk').value})">Guardar persona</button></div>`
+    +D.usuarios.map(u=>`<div class="card row"><span>${esc(u.nombre)} <span class="mute">${esc(u.cedula)}</span></span><button class="sec" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button></div>`).join(''),
+  ind:()=>`<div class="card"><input id="in" placeholder="Nombre del indicador"><input id="ip" type="number" placeholder="Puntos por día cumplido">
+    <button onclick="g('admin_indicador',{p_nombre:$('#in').value.trim(),p_puntos:+$('#ip').value})">Guardar indicador</button></div>`
+    +D.indicadores.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${i.puntos} pts</span><button class="sec" onclick="del('indicadores',${i.id})">Borrar</button></div>`).join(''),
+  inc:()=>`<div class="card"><p class="mute">Se crean para el mes actual (${esc(D.mes)}).</p><input id="xn" placeholder="Nombre"><input id="xp" placeholder="Premio"><input id="xm" type="number" placeholder="Meta de puntos">
+    <button onclick="g('admin_incentivo',{p_nombre:$('#xn').value.trim(),p_premio:$('#xp').value.trim(),p_meta:+$('#xm').value})">Crear incentivo</button></div>`
+    +D.incentivos.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${esc(i.premio)} · ${i.meta} pts <span class="mute">${esc(i.mes)}</span></span><button class="sec" onclick="del('incentivos',${i.id})">Borrar</button></div>`).join('')}[tab]();
+  app.innerHTML=`<div class="top"><h1>Administración</h1><button class="sec" onclick="out()">Salir</button></div>
+  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';drawAdmin()">${n}</button>`).join('')}</div>${v}
+  <h2>Ranking actual</h2><div class="card">${D.ranking.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
+}
+async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
+const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
+const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:+$('#p'+id).value||0,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
+async function lote(){
+  const datos=$('#lt').value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(a=>a.length>=3)
+    .map(a=>({cedula:a[0],indicador:a[1],cumplido:a[2]==='1'}));
+  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await load();tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
+}
+S?load():login();
+</script>
+</body>
+</html>
