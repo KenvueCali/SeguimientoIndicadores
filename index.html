@@ -35,6 +35,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line)}
 .tabs button.on{background:var(--ink);color:#fff}
+.dia{padding:0;overflow:hidden}
+.dia .cab{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dia .cab b{text-transform:capitalize}
+.dia .tot{font-weight:800;color:var(--teal);white-space:nowrap}
+.dia .it{display:flex;justify-content:space-between;gap:10px;padding:9px 16px;border-bottom:1px solid var(--line)}
+.dia .it:last-child{border-bottom:0}
+.dia .si{color:var(--teal);font-weight:600}.dia .no{color:var(--coral);font-weight:600}
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
 </style>
@@ -48,7 +55,7 @@ const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6
 // ================================================================
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, tab='post', msg='';
+let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, tab='post', msg='';
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -58,6 +65,7 @@ async function rpc(fn,body){
 async function load(){
   try{
     D=S.a?await rpc('admin_panel',{p_admin:S.clave}):await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
+    if(!S.a){try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}}
     sessionStorage.setItem('s',JSON.stringify(S)); draw();
   }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
 }
@@ -85,6 +93,7 @@ function drawUser(){
   <span class="mute">${ok?'¡Lo lograste!':`Llevas ${pts} de ${n.meta} puntos. Te faltan ${n.meta-pts}.`}</span></div>`}).join('')||'<p class="mute">Aún no hay incentivos definidos para este mes.</p>'}
   <h2>Ranking</h2><div class="card">${rk.map((x,j)=>`<div class="rk ${x.yo?'yo':''}"><span class="n">${j+1}</span><span>${esc(x.nombre)}</span><span>${x.puntos} pts</span></div>`).join('')}</div>
   <h2>Mis indicadores</h2>${D.indicadores.map(n=>`<div class="card row"><span>${esc(n.nombre)}<br><span class="mute">${n.puntos} puntos por día cumplido</span></span><b>${n.dias} días · ${n.dias*n.puntos} pts</b></div>`).join('')}
+  <h2>Mis días</h2>${dias()}
   <h2>Postular una atención increíble</h2>
   <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
   <input id="nc" maxlength="60" placeholder="Número de caso">
@@ -92,6 +101,13 @@ function drawUser(){
   <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
   ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
   <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}`;
+}
+function dias(){
+  const d=H&&H.dias||[];
+  if(!d.length) return '<p class="mute">Aún no hay resultados diarios cargados este mes.</p>';
+  return d.map(x=>{const f=new Date(x.fecha+'T12:00:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'}),c=x.indicadores.filter(i=>i.cumplido).length;
+  return `<div class="card dia"><div class="cab"><span><b>${esc(f)}</b><br><span class="mute">${c} de ${x.indicadores.length} indicadores cumplidos</span></span><span class="tot">+${x.puntos} pts</span></div>`
+  +x.indicadores.map(i=>`<div class="it"><span>${esc(i.nombre)}</span><span class="${i.cumplido?'si':'no'}">${i.cumplido?'✔ Cumplió · +'+i.puntos+' pts':'✘ No cumplió · 0 pts'}</span></div>`).join('')+'</div>'}).join('');
 }
 async function postular(){
   const t=$('#t').value.trim(), c=$('#nc').value.trim();
