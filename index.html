@@ -86,24 +86,25 @@ function drawUser(){
   <h2>Ranking</h2><div class="card">${rk.map((x,j)=>`<div class="rk ${x.yo?'yo':''}"><span class="n">${j+1}</span><span>${esc(x.nombre)}</span><span>${x.puntos} pts</span></div>`).join('')}</div>
   <h2>Mis indicadores</h2>${D.indicadores.map(n=>`<div class="card row"><span>${esc(n.nombre)}<br><span class="mute">${n.puntos} puntos por día cumplido</span></span><b>${n.dias} días · ${n.dias*n.puntos} pts</b></div>`).join('')}
   <h2>Postular una atención increíble</h2>
-  <div class="card"><p class="mute">Cuéntanos qué pasó y por qué fue excepcional. Si cumple los criterios, suma puntos extra; si no, recibes feedback con un compromiso.</p>
+  <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
+  <input id="nc" maxlength="60" placeholder="Número de caso">
   <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
   <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
   ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
-  <p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}`;
+  <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}`;
 }
 async function postular(){
-  const t=$('#t').value.trim(); if(!t)return;
-  try{await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_texto:t});msg='Postulación enviada';await load()}catch(e){alert(e.message)}
+  const t=$('#t').value.trim(), c=$('#nc').value.trim();
+  if(!c){alert('Debes escribir el número de caso');return} if(!t){alert('Describe la atención');return}
+  try{await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});msg='Postulación enviada';await load()}catch(e){alert(e.message)}
 }
 
 // ---------- Vista del administrador ----------
 const T={post:'Postulaciones',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
   const v={
-  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b><p>${esc(p.descripcion)}</p>
-    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><input id="p${p.id}" type="number" placeholder="Puntos extra si es increíble">
-    <button onclick="evaluar(${p.id},true)">Aprobar</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
+  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
+    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar 7 puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
     <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (1 cumplió, 0 no cumplió).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
     <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`,
@@ -122,7 +123,7 @@ function drawAdmin(){
 }
 async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
 const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
-const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:+$('#p'+id).value||0,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
+const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:7,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
 async function lote(){
   const datos=$('#lt').value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(a=>a.length>=3)
     .map(a=>({cedula:a[0],indicador:a[1],cumplido:a[2]==='1'}));
