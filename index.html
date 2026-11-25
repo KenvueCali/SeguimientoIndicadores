@@ -239,9 +239,13 @@ function fechas(){
   if(!F)return '';
   const esp=F.usuarios*F.indicadores,ul=F.ultima?new Date(F.ultima).toLocaleString('es',{day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}):'sin registro';
   return `<h2>Fechas ya cargadas</h2><div class="card"><p class="mute">Revisa aquí antes de cargar para no repetir un día. Si cargas una fecha que ya existe, los resultados de esa fecha se reemplazan. Última carga: <b>${esc(ul)}</b>. Un día completo tiene ${esp} registros (${F.usuarios} personas × ${F.indicadores} indicadores).</p>`
-  +(F.fechas.length?`<div style="overflow-x:auto"><table class="fch"><tr><th>Fecha</th><th>Registros</th><th>Personas</th><th>Cumplidos</th><th>Estado</th><th></th></tr>`
-  +F.fechas.map(x=>{const ok=x.registros>=esp;return `<tr><td><b>${fdl(x.fecha)}</b></td><td>${x.registros}</td><td>${x.personas} de ${F.usuarios}</td><td>${x.registros?Math.round(x.cumplidos/x.registros*100):0}%</td><td><span class="est ${ok?'c':'i'}">${ok?'Completo':'Incompleto'}</span></td><td><button class="sec" onclick="$('#fe').value='${x.fecha}';avisoFecha();scrollTo(0,0)">Usar fecha</button></td></tr>`}).join('')+'</table></div>'
+  +(F.fechas.length?`<div style="overflow-x:auto"><table class="fch"><tr><th>Fecha</th><th>Registros</th><th>Personas</th><th>Cumplidos</th><th>Estado</th><th colspan="2"></th></tr>`
+  +F.fechas.map(x=>{const ok=x.registros>=esp;return `<tr><td><b>${fdl(x.fecha)}</b></td><td>${x.registros}</td><td>${x.personas} de ${F.usuarios}</td><td>${x.registros?Math.round(x.cumplidos/x.registros*100):0}%</td><td><span class="est ${ok?'c':'i'}">${ok?'Completo':'Incompleto'}</span></td><td><button class="sec" onclick="$('#fe').value='${x.fecha}';avisoFecha();scrollTo(0,0)">Usar fecha</button></td><td><button class="sec" style="color:var(--coral)" onclick="borrarFecha('${x.fecha}',${x.registros})">Borrar</button></td></tr>`}).join('')+'</table></div>'
   :'<p class="mute">Aún no hay fechas cargadas.</p>')+'</div>';
+}
+function borrarFecha(f,n){
+  if(!confirm('¿Borrar los '+n+' registros del '+fdl(f)+'? Los usuarios dejarán de ver ese día y sus puntos se descontarán. No se puede deshacer.'))return;
+  g('admin_borrar_fecha',{p_fecha:f});
 }
 function avisoFecha(){
   const a=$('#aw');if(!a||!F)return;const d=F.fechas.find(x=>x.fecha===$('#fe').value);
