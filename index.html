@@ -97,6 +97,50 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .fch button{padding:4px 10px;font-size:.82rem}
 .est{font-size:.8rem;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .est.c{background:var(--teal);color:#fff}.est.i{background:var(--gold);color:#222}
+.exp{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:10px}
+.exp div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.exp b{display:block;font-size:1.02rem;margin-bottom:3px}
+.leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;margin:6px 0 12px}
+.leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.sb{display:grid;grid-template-columns:150px 1fr 44px;gap:8px;align-items:center;margin:5px 0;font-size:.9rem}
+.sb .sn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb .st{display:flex;height:20px;background:var(--line);border-radius:6px;overflow:hidden}
+.sb .st i{display:block;height:100%}
+.sb b{text-align:right}
+@media(max-width:560px){.sb{grid-template-columns:96px 1fr 38px}}
+.pz{width:100%;border-collapse:collapse;font-size:.9rem}
+.pz th,.pz td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.pz th{color:var(--mute);font-size:.8rem;font-weight:600}
+.pz tr.mv td{color:var(--mute);font-size:.86rem;padding-top:0}
+.pz .n{font-weight:800}
+.hm{border-collapse:separate;border-spacing:2px;font-size:.72rem}
+.hm th{font-weight:600;color:var(--mute);padding:2px 3px;white-space:nowrap}
+.hm td{min-width:30px;height:26px;text-align:center;border-radius:4px}
+.hm td.nm{text-align:left;min-width:120px;padding-right:8px;white-space:nowrap;font-size:.82rem}
+.dt{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:10px 0}
+.dt div{background:var(--bg);border-radius:8px;padding:10px;font-size:.88rem}
+.dt b{display:block;font-size:1.25rem}
+.cmpb{display:grid;grid-template-columns:140px 1fr auto;gap:8px;align-items:center;margin:6px 0;font-size:.9rem}
+.cmpb .tr{height:10px;background:var(--line);border-radius:5px;overflow:hidden}.cmpb .tr i{display:block;height:100%}
+#pop{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:60}
+#pop .tab{writing-mode:vertical-rl;background:var(--gold);color:#222;border-radius:12px 0 0 12px;padding:16px 10px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+@media(prefers-reduced-motion:no-preference){#pop .tab{animation:pl 2.4s ease-in-out infinite}}
+@keyframes pl{0%,100%{padding-right:10px}50%{padding-right:16px}}
+#pop .tz{position:absolute;right:46px;top:50%;transform:translateY(-50%);width:230px;background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:12px 14px;box-shadow:0 6px 18px rgba(0,0,0,.2);font-size:.9rem}
+#pop .tz button{padding:5px 12px;font-size:.85rem;margin-top:6px}
+#pop .tz .x{position:absolute;top:2px;right:4px;background:none;color:var(--mute);padding:2px 8px;margin:0;font-size:1.1rem}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none}
+.ov.on{display:block}
+.dw{position:fixed;top:0;right:0;height:100%;width:min(420px,94vw);background:var(--card);border-left:1px solid var(--line);z-index:80;padding:20px;overflow:auto;transform:translateX(105%);transition:transform .3s;box-shadow:-8px 0 24px rgba(0,0,0,.25);visibility:hidden}
+.dw.on{transform:none;visibility:visible}
+@media(prefers-reduced-motion:reduce){.dw{transition:none}}
+.dw h2{margin:0 0 6px;font-size:1.3rem}
+.dw .stp{display:grid;grid-template-columns:38px 1fr;gap:10px;margin:14px 0}
+.dw .stp .no2{width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800}
+.dw .stp.g .no2{background:var(--gold);color:#222}
+.dw ul{margin:6px 0 0;padding-left:18px}
+.dw .ex{background:var(--bg);border-radius:10px;padding:12px;font-size:.92rem}
+.dw .cl{position:absolute;top:10px;right:12px;background:none;color:var(--mute);font-size:1.4rem;padding:2px 10px}
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
 </style>
@@ -110,7 +154,7 @@ const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6
 // ================================================================
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, tab='post', msg='';
+let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null, selP='', tab='post', msg='';
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -120,13 +164,14 @@ async function rpc(fn,body){
 async function load(){
   try{
     D=S.a?await rpc('admin_panel',{p_admin:S.clave}):await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
-    if(S.a){try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}}
+    if(S.a){try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
+      try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}}
     if(!S.a){try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}}
     sessionStorage.setItem('s',JSON.stringify(S)); draw();
   }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
 }
 function login(err=''){
-  app.className='';app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
+  popHide();app.className='';app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
   <p class="mute">Ingresa con tu cédula y tu clave.</p>
   <label>Cédula<input id="c" inputmode="numeric" autocomplete="username"></label>
   <label>Clave<input id="k" type="password" autocomplete="current-password"></label>
@@ -136,7 +181,7 @@ function login(err=''){
   $('#adm').onclick=()=>{S={a:1,clave:$('#k').value};load()};
 }
 function out(){S=null;sessionStorage.removeItem('s');login()}
-function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser()}
+function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
 
 // ---------- Vista de la persona ----------
 function ini(n){return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
@@ -168,7 +213,7 @@ function drawUser(){
   <span class="mute">${ok?'¡Lo lograste! 🎉':`Llevas ${pts} de ${n.meta} puntos. Te faltan ${n.meta-pts}.`}</span></div>`}).join('')||'<p class="mute">Aún no hay incentivos definidos para este mes.</p>'}
   <h2>📊 Mis indicadores</h2>${D.indicadores.map(n=>`<div class="card row"><span>${esc(n.nombre)}<br><span class="mute">${n.puntos} puntos por día cumplido</span></span><b>${n.dias} días · ${n.dias*n.puntos} pts</b></div>`).join('')}
   <h2>📅 Mis días</h2>${dias()}
-  <h2>✨ Postular una atención increíble</h2>
+  <h2 id="postular">✨ Postular una atención increíble</h2>
   <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
   <input id="nc" maxlength="60" placeholder="Número de caso">
   <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
@@ -212,9 +257,10 @@ async function postular(){
 }
 
 // ---------- Vista del administrador ----------
-const T={post:'Postulaciones',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
+const T={pos:'Posiciones',post:'Postulaciones',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
   const v={
+  pos:()=>posView(),
   post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
     <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar 7 puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
@@ -251,6 +297,74 @@ function avisoFecha(){
   const a=$('#aw');if(!a||!F)return;const d=F.fechas.find(x=>x.fecha===$('#fe').value);
   a.textContent=d?`⚠ ${fdl(d.fecha)} ya tiene ${d.registros} registros cargados. Si guardas, se reemplazan los resultados de esa fecha.`:'';
 }
+// ---------- Admin: por qué cada persona está en su posición ----------
+const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
+const corto=n=>n.split(' ').slice(0,2).join(' ');
+function posView(){
+  if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
+  const P=G.personas,ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
+  const ord=ind.map((x,k)=>k).sort((a,b)=>{const pa=PRI.indexOf(ind[a].nombre.toLowerCase()),pb=PRI.indexOf(ind[b].nombre.toLowerCase());return (pa<0?99:pa)-(pb<0?99:pb)||a-b});
+  const col=k=>PAL[ord.indexOf(k)%PAL.length],ip=(p,k)=>p.por_indicador[k].dias_ok*p.por_indicador[k].puntos;
+  if(!selP||!P.find(p=>p.cedula===selP))selP=P[0].cedula;
+  const perfect=ind.reduce((a,x)=>a+x.puntos,0);
+  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Atenciones increíbles</b><span class="mute">Cada postulación aprobada suma 7 pts directos al ranking del mes.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
+  const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
+  const bars=P.map((p,j)=>`<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`).join('');
+  const motivo=j=>{const p=P[j];
+    const fz=ord.filter(k=>p.por_indicador[k].dias_total>0).map(k=>({n:ind[k].nombre,r:p.por_indicador[k].dias_ok/p.por_indicador[k].dias_total,o:p.por_indicador[k].dias_ok,t:p.por_indicador[k].dias_total}));
+    let a='';if(fz.length){const mj=fz.reduce((x,y)=>y.r>x.r?y:x),pe=fz.reduce((x,y)=>y.r<x.r?y:x);a=` Más fuerte: ${esc(mj.n)} (${mj.o}/${mj.t} días). ${pe.r<1&&pe!==mj?`A reforzar: ${esc(pe.n)} (${pe.o}/${pe.t}).`:''}`}
+    if(j===0)return `Lidera${P[1]?` con ${p.puntos-P[1].puntos} pts sobre ${esc(corto(P[1].nombre))}`:''}.${a}`;
+    const u=P[j-1],dif=u.puntos-p.puntos;
+    if(!dif)return `Empatado en ${p.puntos} pts con ${esc(corto(u.nombre))}; el desempate es por nombre.${a}`;
+    const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
+    return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
+  const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Pts</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días cumplidos</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
+   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b></td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
+  const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
+   +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
+  // detalle persona
+  const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
+  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post);
+  const sv=G.fechas.map((f,i)=>{const d=dm[f],x=30+i*stp,h=d?d.pts/Math.max(1,perfect)*(Hh-40):0;return `<rect x="${x}" y="${Hh-20-h}" width="${bw}" height="${Math.max(h,d?2:0)}" rx="2" fill="${d&&d.ok===d.total?GOLD:'#0e8f83'}"><title>${f}: ${d?d.pts+' pts · '+d.ok+' de '+d.total:'sin registros'}</title></rect><text x="${x+bw/2}" y="${Hh-6}" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6">${f.slice(8)}</text>`}).join('');
+  const pts=G.fechas.map((f,i)=>{acc+=dm[f]?dm[f].pts:0;return `${(30+i*stp+bw/2).toFixed(1)},${(Hh-20-acc/tot*(Hh-40)).toFixed(1)}`}).join(' ');
+  const dd=p.dias,perf=dd.filter(d=>d.ok===d.total).length,mejor=dd.reduce((a,d)=>Math.max(a,d.pts),0),okT=dd.reduce((a,d)=>a+d.ok,0),tT=dd.reduce((a,d)=>a+d.total,0);
+  const det=`<div class="row row2" style="max-width:420px"><label>Persona<select onchange="selP=this.value;drawAdmin()">${P.map((x,j)=>`<option value="${x.cedula}" ${x.cedula===selP?'selected':''}>${j+1}. ${esc(x.nombre)}</option>`).join('')}</select></label></div>
+   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos}</b>Puntos del mes</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
+   <p class="mute" style="margin:0 0 4px"><b style="color:var(--ink)">Cómo llegó a ${p.puntos} puntos</b></p>
+   ${ord.map(k=>{const x=p.por_indicador[k],r=x.dias_total?x.dias_ok/x.dias_total*100:0;return `<div class="cmpb"><span>${esc(x.nombre)}</span><span class="tr"><i style="width:${r}%;background:${col(k)}"></i></span><span>${x.dias_ok} de ${x.dias_total} días × ${x.puntos} = <b>${ip(p,k)}</b></span></div>`}).join('')}
+   <div class="cmpb"><span>Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × 7 = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
+   <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
+   <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
+  return `<h2>¿Por qué cada persona está en su puesto?</h2>${ex}
+  <div class="card"><b>Cómo se compone el puntaje de cada persona</b>${leg}${bars}</div>
+  <div class="card"><b>Detalle y motivo por puesto</b><p class="mute" style="margin:2px 0 8px">Días cumplidos de los días con registro, y qué tanto se separa cada persona de quien tiene arriba.</p>${tabla}</div>
+  <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
+  <div class="card"><b>Análisis individual</b>${det}</div>`;
+}
+// ---------- Usuario: pop-up lateral que explica cómo sumar ----------
+let popOpen=false;
+function popHide(){const e=document.getElementById('pop');if(e)e.remove();const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.remove();if(d)d.remove();popOpen=false}
+function popShow(){
+  popHide();if(!D||S.a)return;
+  const perfect=D.indicadores.reduce((a,x)=>a+x.puntos,0),aprob=D.postulaciones.filter(p=>p.estado==='aprobada').length,teaser=!sessionStorage.getItem('pz');
+  const w=document.createElement('div');w.id='pop';
+  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma 7 pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button onclick="popOpenF()">Ver cómo</button></div>`:''}<button class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
+  const o=document.createElement('div');o.id='ov';o.className='ov';o.onclick=popClose;
+  const d=document.createElement('aside');d.id='dw';d.className='dw';d.setAttribute('role','dialog');d.setAttribute('aria-label','Cómo sumar puntos');
+  d.innerHTML=`<button class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
+  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${D.indicadores.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
+  <div class="stp"><span class="no2">2</span><div><b>Registra tus interacciones destacadas</b><br><span class="mute">Cuando tengas una atención de la que te sientas orgulloso, postúlala con el número de caso y cuenta qué pasó y por qué fue excepcional.</span></div></div>
+  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +7 pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma 7 puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
+  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+7} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
+  <p style="margin:16px 0 0"><button onclick="popPost()">✨ Postular una atención ahora</button></p>`;
+  document.body.append(w,o,d);
+}
+function popTz(){sessionStorage.setItem('pz','1');const t=document.getElementById('tz');if(t)t.remove()}
+function popOpenF(){popTz();popOpen=true;document.getElementById('ov').classList.add('on');const d=document.getElementById('dw');d.classList.add('on');d.querySelector('.cl').focus()}
+function popClose(){popOpen=false;const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.classList.remove('on');if(d)d.classList.remove('on')}
+function popPost(){popClose();const h=document.getElementById('postular');if(h)h.scrollIntoView({behavior:'smooth'});setTimeout(()=>{const n=document.getElementById('nc');if(n)n.focus()},500)}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()});
+
 async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
 const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
 const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:7,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
