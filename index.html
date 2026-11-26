@@ -11,7 +11,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'Bricolage Grotesque',system-ui,sans-serif;padding:18px}
-main{max-width:780px;margin:0 auto}
+main{max-width:780px;margin:0 auto;position:relative;z-index:1}
 main.wide{max-width:1180px}
 h1,h2,h3{margin:0;line-height:1.18}
 h2{font-size:1.15rem;margin:26px 0 10px}
@@ -160,17 +160,18 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .cmpb{display:grid;grid-template-columns:140px 1fr auto;gap:8px;align-items:center;margin:6px 0;font-size:.9rem}
 .cmpb .tr{height:10px;background:var(--line);border-radius:5px;overflow:hidden}.cmpb .tr i{display:block;height:100%}
 
-#pop{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:60}
+#pop{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:60;pointer-events:none}
+#pop button{pointer-events:auto}
 #pop .tab{writing-mode:vertical-rl;background:var(--gold);color:#222;border-radius:12px 0 0 12px;padding:16px 10px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 @media(prefers-reduced-motion:no-preference){#pop .tab{animation:pl 2.4s ease-in-out infinite}}
 @keyframes pl{0%,100%{padding-right:10px}50%{padding-right:16px}}
-#pop .tz{position:absolute;right:46px;top:50%;transform:translateY(-50%);width:230px;background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:12px 14px;box-shadow:0 6px 18px rgba(0,0,0,.2);font-size:.9rem}
+#pop .tz{position:absolute;right:46px;top:50%;transform:translateY(-50%);width:230px;background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:12px 14px;box-shadow:0 6px 18px rgba(0,0,0,.2);font-size:.9rem;pointer-events:auto}
 #pop .tz button{padding:5px 12px;font-size:.85rem;margin-top:6px}
 #pop .tz .x{position:absolute;top:2px;right:4px;background:none;color:var(--mute);padding:2px 8px;margin:0;font-size:1.1rem}
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none}
-.ov.on{display:block}
-.dw{position:fixed;top:0;right:0;height:100%;width:min(420px,94vw);background:var(--card);border-left:1px solid var(--line);z-index:80;padding:20px;overflow:auto;transform:translateX(105%);transition:transform .3s;box-shadow:-8px 0 24px rgba(0,0,0,.25);visibility:hidden}
-.dw.on{transform:none;visibility:visible}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;pointer-events:none}
+.ov.on{display:block;pointer-events:auto}
+.dw{position:fixed;top:0;right:0;height:100%;width:min(420px,94vw);background:var(--card);border-left:1px solid var(--line);z-index:80;padding:20px;overflow:auto;transform:translateX(105%);transition:transform .3s;box-shadow:-8px 0 24px rgba(0,0,0,.25);visibility:hidden;pointer-events:none}
+.dw.on{transform:none;visibility:visible;pointer-events:auto}
 @media(prefers-reduced-motion:reduce){.dw{transition:none}}
 .dw h2{margin:0 0 6px;font-size:1.3rem}
 .dw .stp{display:grid;grid-template-columns:38px 1fr;gap:10px;margin:14px 0}
@@ -225,8 +226,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
 
-#toast-box{position:fixed;top:16px;right:16px;z-index:120;display:flex;flex-direction:column;gap:8px;max-width:360px;width:calc(100vw - 32px)}
-.toast{background:var(--ink);color:#fff;border-left:5px solid var(--gold);border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;animation:slideIn .3s ease}
+#toast-box{position:fixed;top:16px;right:16px;z-index:120;display:flex;flex-direction:column;gap:8px;max-width:360px;width:calc(100vw - 32px);pointer-events:none}
+.toast{background:var(--ink);color:#fff;border-left:5px solid var(--gold);border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;animation:slideIn .3s ease;pointer-events:auto}
 .toast.ok-t{border-left-color:var(--teal)}
 .toast.warn-t{border-left-color:var(--coral)}
 .toast button{padding:4px 10px;font-size:.8rem;margin-top:6px}
@@ -281,6 +282,10 @@ function norm(s){
 }
 function jsArg(val){
   return JSON.stringify(String(val ?? ''));
+}
+function fmtDias(n){
+  const num = Number(n) || 0;
+  return num + (num === 1 ? ' día' : ' días');
 }
 function getEquipo(nombre, cedula=''){
   if(cedula && ASIGNACIONES_EQ['ced:' + String(cedula)]) return ASIGNACIONES_EQ['ced:' + String(cedula)];
@@ -343,7 +348,7 @@ function notify(title, body, type='info', actionHtml='', dedupKey=''){
   const key = dedupKey || `${title}::${body}`;
   const now = Date.now();
   const prev = recentNotifs.get(key) || 0;
-  if(now - prev < 2500) return;
+  if(now - prev < 4000) return;
   recentNotifs.set(key, now);
 
   playTone(type);
@@ -351,7 +356,7 @@ function notify(title, body, type='info', actionHtml='', dedupKey=''){
   if(!box) return;
   const el = document.createElement('div');
   el.className = 'toast ' + (type==='success'?'ok-t':type==='warn'?'warn-t':'');
-  el.innerHTML = `<div><b>${esc(title)}</b><div style="font-size:.88rem;opacity:.92;margin-top:2px">${esc(body)}</div>${actionHtml}</div><button class="cls" aria-label="Cerrar" onclick="this.parentElement.remove()">×</button>`;
+  el.innerHTML = `<div><b>${esc(title)}</b><div style="font-size:.88rem;opacity:.92;margin-top:2px">${esc(body)}</div>${actionHtml}</div><button type="button" class="cls" aria-label="Cerrar" onclick="this.parentElement.remove()">×</button>`;
   box.appendChild(el);
   setTimeout(()=>{ if(el.parentElement) el.remove(); }, 9500);
 }
@@ -548,7 +553,7 @@ function detectarYNotificarCambios(prevState, nextState){
           '🚀 ¡Nueva misión publicada!',
           `${m.titulo} (+${m.puntos} pts · ${m.insignia_icono} ${m.insignia_nombre})`,
           'alert',
-          `<button class="gold" onclick="userTab='misiones';drawUser()">Ver misión</button>`,
+          `<button type="button" class="gold" data-user-tab="misiones">Ver misión</button>`,
           `mis-new-${m.id}`
         );
       }else{
@@ -585,7 +590,7 @@ function detectarYNotificarCambios(prevState, nextState){
           '🌟 Nueva postulación enviada',
           `${p.nombre} envió el caso ${p.caso || 'sin número'} para validar.`,
           'alert',
-          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`,
+          `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`,
           `adm-post-${p.id}`
         );
       }
@@ -600,7 +605,7 @@ function detectarYNotificarCambios(prevState, nextState){
             '🚀 Reto marcado como completado',
             `${pv.nombre} marcó "${m.titulo}" como completado y pide validación.`,
             'alert',
-            `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+            `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
             `adm-mis-${m.id}-${pv.cedula}`
           );
         }
@@ -614,7 +619,7 @@ function detectarYNotificarCambios(prevState, nextState){
           '🎯 Corte de incentivo por validar',
           `${v.nombre} solicitó validar el cierre de "${v.incentivo_nombre || 'Incentivo'}".`,
           'alert',
-          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+          `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
           `adm-inc-${v.incentivo_id}-${v.cedula}`
         );
       }
@@ -622,7 +627,7 @@ function detectarYNotificarCambios(prevState, nextState){
   }
 }
 
-async function syncState({ silent=false } = {}){
+async function syncState({ silent=false, allowNotif=true } = {}){
   if(!S) return;
   const prevState = D ? {
     D: JSON.parse(JSON.stringify(D)),
@@ -656,7 +661,9 @@ async function syncState({ silent=false } = {}){
   const sig = buildSignature(D, H, MISIONES, VALIDACIONES_INC);
 
   if(prevState && sig !== lastSignature){
-    detectarYNotificarCambios(prevState, nextState);
+    if(allowNotif){
+      detectarYNotificarCambios(prevState, nextState);
+    }
     if(S.a){
       try{
         F = await rpc('admin_fechas', {p_admin: S.clave});
@@ -671,11 +678,11 @@ async function syncState({ silent=false } = {}){
   lastSignature = sig;
 }
 
-function scheduleRealtimeSync(){
+function scheduleRealtimeSync(allowNotif=true){
   if(syncDebounce) clearTimeout(syncDebounce);
   syncDebounce = setTimeout(async ()=>{
     try{
-      await syncState({ silent: false });
+      await syncState({ silent: false, allowNotif });
     }catch(e){}
   }, 150);
 }
@@ -708,10 +715,10 @@ function setupRealtime(){
       '🚀 ¡Nueva misión publicada!',
       `${payload?.titulo || 'Nueva misión'} (+${payload?.puntos || 0} pts · ${payload?.insignia_icono || '🏅'} ${payload?.insignia_nombre || ''})`,
       'alert',
-      `<button class="gold" onclick="userTab='misiones';drawUser()">Ir a Misiones</button>`,
-      `bc-mis-${payload?.titulo || ''}`
+      `<button type="button" class="gold" data-user-tab="misiones">Ir a Misiones</button>`,
+      `evt-mis-${norm(payload?.titulo || '')}`
     );
-    scheduleRealtimeSync();
+    scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'postulacion_enviada' }, ({ payload }) => {
@@ -720,10 +727,10 @@ function setupRealtime(){
       '🌟 Nueva postulación enviada',
       `${payload?.nombre || 'Un usuario'} envió el caso ${payload?.caso || 'sin número'}.`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`,
-      `bc-post-${payload?.cedula || ''}-${payload?.caso || ''}`
+      `<button type="button" class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`,
+      `evt-post-${payload?.cedula || ''}-${payload?.caso || ''}`
     );
-    scheduleRealtimeSync();
+    scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'reto_completado' }, ({ payload }) => {
@@ -732,10 +739,10 @@ function setupRealtime(){
       '🚀 Reto completado por usuario',
       `${payload?.nombre || 'Un usuario'} marcó "${payload?.mision_titulo || 'una misión'}" como completada.`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`,
-      `bc-reto-${payload?.cedula || ''}-${payload?.mision_id || ''}`
+      `<button type="button" class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`,
+      `evt-reto-${payload?.cedula || ''}-${payload?.mision_id || ''}`
     );
-    scheduleRealtimeSync();
+    scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'corte_incentivo_enviado' }, ({ payload }) => {
@@ -744,10 +751,10 @@ function setupRealtime(){
       '🎯 Cierre de incentivo enviado',
       `${payload?.nombre || 'Un usuario'} solicitó validar "${payload?.incentivo || 'un incentivo'}".`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`,
-      `bc-corte-${payload?.cedula || ''}-${payload?.incentivo || ''}`
+      `<button type="button" class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`,
+      `evt-corte-${payload?.cedula || ''}-${payload?.incentivo || ''}`
     );
-    scheduleRealtimeSync();
+    scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'validacion_resuelta' }, ({ payload }) => {
@@ -758,15 +765,15 @@ function setupRealtime(){
       payload?.mensaje || 'El administrador actualizó el estado de tu solicitud.',
       payload?.aprobada ? 'success' : 'info',
       '',
-      `bc-val-${payload?.cedula || S.ced}-${payload?.aprobada ? '1' : '0'}`
+      `evt-val-${payload?.cedula || S.ced}-${payload?.aprobada ? '1' : '0'}`
     );
-    scheduleRealtimeSync();
+    scheduleRealtimeSync(false);
   });
 
   const tablas = ['misiones', 'postulaciones', 'misiones_usuarios', 'validaciones_incentivos', 'resultados_diarios', 'negativos'];
   tablas.forEach(tabla => {
     rtChannel.on('postgres_changes', { event: '*', schema: 'public', table: tabla }, () => {
-      scheduleRealtimeSync();
+      scheduleRealtimeSync(true);
     });
   });
 
@@ -792,7 +799,7 @@ function startPolling(){
   if(pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async ()=>{
     if(!S) return;
-    try{ await syncState({ silent: true }); }catch(e){}
+    try{ await syncState({ silent: true, allowNotif: true }); }catch(e){}
   }, 6000);
 }
 
@@ -832,8 +839,8 @@ function login(err=''){
   <p class="mute">Ingresa con tu cédula y tu clave.</p>
   <label for="c">Cédula</label><input id="c" inputmode="numeric" autocomplete="username">
   <label for="k">Clave</label><input id="k" type="password" autocomplete="current-password">
-  <p class="err">${esc(err)}</p><button id="go">Entrar</button>
-  <button class="sec" id="adm" style="margin-left:6px">Soy administrador</button></div>`;
+  <p class="err">${esc(err)}</p><button type="button" id="go">Entrar</button>
+  <button type="button" class="sec" id="adm" style="margin-left:6px">Soy administrador</button></div>`;
   $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
@@ -845,7 +852,7 @@ function draw(){
     S.a?popHide():popShow();
   }catch(err){
     console.error('Error al dibujar la vista:', err);
-    app.innerHTML=`<div class="card"><h3>Error al mostrar la vista</h3><p class="mute">${esc(err.message)}</p><button onclick="syncState()">Reintentar</button></div>`;
+    app.innerHTML=`<div class="card"><h3>Error al mostrar la vista</h3><p class="mute">${esc(err.message)}</p><button type="button" onclick="syncState({allowNotif:false})">Reintentar</button></div>`;
   }
 }
 
@@ -864,7 +871,7 @@ function updTxt(){
   const f=H.actualizado?new Date(H.actualizado).toLocaleString('es',{day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}):'',
   h=H.hasta?new Date(H.hasta+'T12:00:00').toLocaleDateString('es',{day:'numeric',month:'long'}):'';
   if(!f&&!h)return '<div class="upd"><span>🕒 Aún no hay información cargada.</span></div>';
-  return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="syncState()">Recargar ahora</button></div>`;
+  return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button type="button" class="sec" onclick="syncState({allowNotif:false})">Recargar ahora</button></div>`;
 }
 
 function getMisionesVisiblesUsuario(){
@@ -885,6 +892,19 @@ function getInsigniasGanadasUsuario(){
       const loc = getEstadoLocalMision(m.id);
       return !!m.completada || m.estado_usuario === 'aprobada' || loc === 'aprobada';
     });
+}
+
+function setUserTab(nextTab){
+  userTab = nextTab;
+  drawUser();
+}
+function setVistaRk(nextRk){
+  vistaRk = nextRk;
+  drawUser();
+}
+function setVistaNeg(nextNeg){
+  vistaNeg = nextNeg;
+  drawUser();
 }
 
 function drawUser(){
@@ -910,10 +930,10 @@ function drawUser(){
   const insigniasGanadas = getInsigniasGanadasUsuario();
 
   const navUser = `<div class="tabs">
-    <button type="button" class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen y Premios</button>
-    <button type="button" class="${userTab==='dias'?'on':''}" onclick="userTab='dias';drawUser()">📅 Mi Día a Día (${cantDias})</button>
-    <button type="button" class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
-    <button type="button" class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento</button>
+    <button type="button" data-user-tab="resultados" class="${userTab==='resultados'?'on':''}">📊 Resumen y Premios</button>
+    <button type="button" data-user-tab="dias" class="${userTab==='dias'?'on':''}">📅 Mi Día a Día (${cantDias})</button>
+    <button type="button" data-user-tab="misiones" class="${userTab==='misiones'?'on':''}">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
+    <button type="button" data-user-tab="negativos" class="${userTab==='negativos'?'on':''}">⚠️ Mal comportamiento</button>
   </div>`;
 
   const bloqueInsignias = `<div class="card" style="border-left:5px solid var(--gold)">
@@ -943,7 +963,7 @@ function drawUser(){
           <h2 style="margin:0">📅 Tu detalle día a día</h2>
           <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, el detalle de tus indicadores y tu comparación con el equipo.</p>
         </div>
-        <button type="button" class="sec" onclick="userTab='resultados';drawUser()">← Volver al resumen</button>
+        <button type="button" class="sec" data-user-tab="resultados">← Volver al resumen</button>
       </div>
     </div>` + dias();
   }else if(userTab === 'misiones'){
@@ -963,8 +983,8 @@ function drawUser(){
       <div class="row" style="margin-bottom:6px">
         <h2>🏆 Ranking</h2>
         <div class="seg-switch" style="margin:0">
-          <button type="button" class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
-          <button type="button" class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
+          <button type="button" data-rk="equipo" class="${vistaRk==='equipo'?'on':''}">${esc(nomEquipo)}</button>
+          <button type="button" data-rk="global" class="${vistaRk==='global'?'on':''}">Global</button>
         </div>
       </div>
       <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
@@ -982,7 +1002,7 @@ function drawUser(){
         <b>📅 ¿Quieres ver tu historial detallado día por día?</b>
         <div class="mute">Consulta cada fecha con el detalle de tus indicadores, promotores y detractores.</div>
       </div>
-      <button type="button" class="sec" onclick="userTab='dias';drawUser()">Abrir Mi Día a Día (${cantDias})</button>
+      <button type="button" class="sec" data-user-tab="dias">Abrir Mi Día a Día (${cantDias})</button>
     </div>
     <h2 id="postular" class="shd">🌟 Postular una atención increíble</h2>
     <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas <b>${PTS_INCREIBLE} puntos</b>; si no, recibes feedback con un compromiso.</p>
@@ -1130,7 +1150,7 @@ async function marcarMisionCompletada(misionId, tituloMision='Misión'){
     }catch(err){}
   }
   notify('🚀 Misión enviada a validación', 'El administrador recibió la alerta en tiempo real en su campana.', 'success', '', `mis-env-${misionId}`);
-  await syncState({ silent: false });
+  await syncState({ silent: false, allowNotif: false });
 }
 
 async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nombreInsignia='Insignia de Misión', subtituloExtra=''){
@@ -1245,8 +1265,8 @@ function seccionNegativosUsuario(miEq){
   return `<div class="row" style="margin:6px 0 10px">
     <h3 style="margin:0">📋 Tablero general (${vistaNeg==='global'?'Toda la operación':'Tu equipo'})</h3>
     <div class="seg-switch" style="margin:0">
-      <button type="button" class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Todos (${todos.length})</button>
-      <button type="button" class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
+      <button type="button" data-neg="global" class="${vistaNeg==='global'?'on':''}">Todos (${todos.length})</button>
+      <button type="button" data-neg="equipo" class="${vistaNeg==='equipo'?'on':''}">Mi Equipo</button>
     </div>
   </div>
   ${construirTableroGeneralConducta(vistaNeg==='global'?'global':miEq)}
@@ -1290,7 +1310,7 @@ async function reportarNegativo(esAdmin){
       p_reportado_nombre: per, p_tipo: tipo, p_motivo: mot, p_reportado_por: null
     });
     notify('⚠️ Registro anónimo guardado', `Se añadió 1 punto negativo informativo para ${per}.`, 'warn');
-    await syncState({ silent: false });
+    await syncState({ silent: false, allowNotif: false });
   }catch(e){ alert(e.message); }
 }
 
@@ -1350,7 +1370,7 @@ async function postular(){
     msg='Postulación enviada';
     broadcastEvent('postulacion_enviada', { cedula: S.ced, nombre: D.nombre, caso: c });
     notify('📨 Postulación enviada', `Tu caso ${c} fue enviado y notificado al admin al instante.`, 'success', '', `post-sent-${c}`);
-    await syncState({ silent: false });
+    await syncState({ silent: false, allowNotif: false });
   }catch(e){alert(e.message)}
 }
 
@@ -1467,7 +1487,7 @@ async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
     });
   }catch(e){}
   notify('📋 Validación solicitada al líder', `Enviaste tu cierre/corte para "${nombreInc}" (${corteTxt}).`, 'success', '', `inc-req-${incId}`);
-  await syncState({ silent: false });
+  await syncState({ silent: false, allowNotif: false });
 }
 
 async function validarIncentivoLider(incId, ced, aprobar){
@@ -1486,7 +1506,7 @@ async function validarIncentivoLider(incId, ced, aprobar){
     });
   }catch(e){}
   notify(aprobar ? '✔ Cierre/corte validado' : '↩ Validación rechazada', aprobar ? 'El usuario ya puede compartir su imagen de logro.' : 'Se registró la observación del líder.', aprobar ? 'success' : 'warn');
-  await syncState({ silent: false });
+  await syncState({ silent: false, allowNotif: false });
 }
 
 async function guardarPuntosIncreible(){
@@ -2147,14 +2167,13 @@ function posView(){
   <div class="card"><b>Análisis individual</b>${det}</div>`;
 }
 let popOpen=false;
-const dd=n=>n+(n===1?' día':' días');
 const perfectDay=()=>((D && D.indicadores) || []).reduce((a,x)=>a+x.puntos,0);
 function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
 function mision(){
   const pd=perfectDay(),n=((D && D.indicadores) || []).length;
   return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble.</p>
   <div class="chips">${((D && D.indicadores) || []).map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
-  <div class="btns"><button type="button" onclick="popPost()">✨ Postular una atención</button><button type="button" class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
+  <div class="btns"><button type="button" data-user-action="post">✨ Postular una atención</button><button type="button" class="sec" data-user-action="help">💡 ¿Cómo funciona?</button></div></div>`;
 }
 function incCards(pts){
   const inc=((D && D.incentivos) || []).map(enrichIncentivo).slice().sort((a,b)=>(a.tipo_meta==='indicador'?1:0)-(b.tipo_meta==='indicador'?1:0)||(a.meta-b.meta));
@@ -2199,7 +2218,7 @@ function incCards(pts){
       const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-PTS_INCREIBLE)/pd),pl=k=>k===1?'':'s';
       how=`<div class="how"><b>🧭 ¿Cómo lo puedes conseguir?</b><ul>`
       +(falta<=PTS_INCREIBLE?`<li>¡Una sola <b>atención increíble aprobada</b> (+${PTS_INCREIBLE} pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+${PTS_INCREIBLE}) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
-      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) alcanzarías la meta en unos <b>${dd(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
+      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) alcanzarías la meta en unos <b>${fmtDias(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
     }
     return `<div class="card inc ${ok?'lg':cerca?'cerca':''}"><span class="rb">${rb}</span>
     <div class="pr"><span class="gift">${ok?'🏆':'🎁'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · meta ${n.meta} pts</span></div></div>
@@ -2213,8 +2232,8 @@ function misInd(){
   d.forEach(x=>x.indicadores.forEach(i=>{const q=st[i.nombre]=st[i.nombre]||{ok:0,t:0};q.t++;if(i.cumplido)q.ok++}));
   const rows=((D && D.indicadores) || []).map(i=>{const q=st[i.nombre]||{ok:0,t:0};return{...i,ok:q.ok,t:q.t,perd:(q.t-q.ok)*i.puntos}});
   const opp=rows.filter(x=>x.perd>0).sort((a,b)=>b.perd-a.perd)[0];
-  return rows.map(x=>{const p=x.t?Math.round(x.ok/x.t*100):0;return `<div class="card ib"><div class="tp"><span><b>${esc(x.nombre)}</b> <span class="mute">· ${x.puntos} pts por día cumplido</span></span><b>${x.dias*x.puntos} pts</b></div><div class="tr" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p}%;background:${p>=80?'var(--teal)':p>=50?'var(--gold)':'var(--coral)'}"></i></div><span class="mute">${x.t?`Lo cumpliste ${x.ok} de ${dd(x.t)} (${p}%)`:'Aún sin registros este mes'}</span></div>`}).join('')
-  +(opp?`<div class="card opp"><b>💎 Tu mayor oportunidad: ${esc(opp.nombre)}</b><br><span>Este mes dejaste de sumar <b>${opp.perd} pts</b> aquí (${dd(opp.t-opp.ok)} sin cumplir × ${opp.puntos} pts). Cumplirlo cada día es el camino más rápido para subir.</span></div>`:'');
+  return rows.map(x=>{const p=x.t?Math.round(x.ok/x.t*100):0;return `<div class="card ib"><div class="tp"><span><b>${esc(x.nombre)}</b> <span class="mute">· ${x.puntos} pts por día cumplido</span></span><b>${x.dias*x.puntos} pts</b></div><div class="tr" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p}%;background:${p>=80?'var(--teal)':p>=50?'var(--gold)':'var(--coral)'}"></i></div><span class="mute">${x.t?`Lo cumpliste ${x.ok} de ${fmtDias(x.t)} (${p}%)`:'Aún sin registros este mes'}</span></div>`}).join('')
+  +(opp?`<div class="card opp"><b>💎 Tu mayor oportunidad: ${esc(opp.nombre)}</b><br><span>Este mes dejaste de sumar <b>${opp.perd} pts</b> aquí (${fmtDias(opp.t-opp.ok)} sin cumplir × ${opp.puntos} pts). Cumplirlo cada día es el camino más rápido para subir.</span></div>`:'');
 }
 
 function popHide(){const e=document.getElementById('pop');if(e)e.remove();const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.remove();if(d)d.remove();popOpen=false}
@@ -2242,23 +2261,53 @@ function popPost(){popClose();userTab='resultados';drawUser();const h=document.g
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()});
 
 document.addEventListener('click', e => {
-  const btn = e.target.closest('button[data-action="admin-tab"]');
-  if(!btn || !S || !S.a) return;
-  const target = btn.getAttribute('data-tab');
-  if(target && target !== tab){
-    bellOpen = false;
-    editIndId = null;
-    editIncId = null;
-    editUsrCed = null;
-    tab = target;
-    drawAdmin();
+  const userTabBtn = e.target.closest('button[data-user-tab]');
+  if(userTabBtn && S && !S.a){
+    const target = userTabBtn.getAttribute('data-user-tab');
+    if(target){
+      setUserTab(target);
+      return;
+    }
+  }
+
+  const rkBtn = e.target.closest('button[data-rk]');
+  if(rkBtn && S && !S.a){
+    setVistaRk(rkBtn.getAttribute('data-rk'));
+    return;
+  }
+
+  const negBtn = e.target.closest('button[data-neg]');
+  if(negBtn && S && !S.a){
+    setVistaNeg(negBtn.getAttribute('data-neg'));
+    return;
+  }
+
+  const actBtn = e.target.closest('button[data-user-action]');
+  if(actBtn && S && !S.a){
+    const act = actBtn.getAttribute('data-user-action');
+    if(act === 'post') popPost();
+    else if(act === 'help') popOpenF();
+    return;
+  }
+
+  const adminBtn = e.target.closest('button[data-action="admin-tab"]');
+  if(adminBtn && S && S.a){
+    const target = adminBtn.getAttribute('data-tab');
+    if(target && target !== tab){
+      bellOpen = false;
+      editIndId = null;
+      editIncId = null;
+      editUsrCed = null;
+      tab = target;
+      drawAdmin();
+    }
   }
 });
 
 async function g(fn,args){
   try{
     await rpc(fn,{p_admin:S.clave,...args});
-    await syncState({ silent: false });
+    await syncState({ silent: false, allowNotif: false });
   }catch(e){alert(e.message)}
 }
 const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
@@ -2278,11 +2327,12 @@ async function lote(){
       promotores:a[3]!==undefined && a[3]!=='' ? +a[3] : null,
       detractores:a[4]!==undefined && a[4]!=='' ? +a[4] : null
     }));
-  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await syncState({silent:false});tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
+  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await syncState({silent:false,allowNotif:false});tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
 }
 
 Object.assign(window, {
   out, drawUser, drawAdmin, syncState, playTone, notify,
+  setUserTab, setVistaRk, setVistaNeg,
   aceptarMision, omitirMision, marcarMisionCompletada, copiarImagenLogro,
   reportarNegativo, postular,
   editarInd, limpiarInd, guardarInd, toggleTipoMetaForm,
