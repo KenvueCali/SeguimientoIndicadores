@@ -227,11 +227,31 @@ function norm(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 }
 function getEquipo(nombre, cedula=''){
+  // 1. Coincidencia exacta por cédula
+  if(cedula && ASIGNACIONES_EQ['ced:' + String(cedula)]) return ASIGNACIONES_EQ['ced:' + String(cedula)];
   if(cedula && ASIGNACIONES_EQ[String(cedula)]) return ASIGNACIONES_EQ[String(cedula)];
+
   const n = norm(nombre);
-  if(n && ASIGNACIONES_EQ['nom:' + n]) return ASIGNACIONES_EQ['nom:' + n];
-  if(EQUIPOS.tradicional.some(m => n.includes(m) || m.includes(n))) return 'tradicional';
-  if(EQUIPOS.social.some(m => n.includes(m) || m.includes(n))) return 'social';
+  if(n){
+    // 2. Coincidencia exacta por nombre guardado desde BD / Admin
+    if(ASIGNACIONES_EQ['nom:' + n]) return ASIGNACIONES_EQ['nom:' + n];
+
+    // 3. Coincidencia parcial con nombres guardados en BD / Admin (ej: "Andres Reina" vs "Andres Felipe Reina")
+    const parts = n.split(' ');
+    const shortN = parts.length >= 2 ? parts[0] + ' ' + parts[parts.length - 1] : n;
+    for(const [k, eq] of Object.entries(ASIGNACIONES_EQ)){
+      if(k.startsWith('nom:')){
+        const savedN = k.slice(4);
+        if(savedN === n || savedN.includes(n) || n.includes(savedN) || (shortN.length > 4 && savedN.includes(shortN))){
+          return eq;
+        }
+      }
+    }
+
+    // 4. Listas base por defecto
+    if(EQUIPOS.tradicional.some(m => n === m || n.includes(m) || m.includes(n) || (shortN.length > 4 && m.includes(shortN)))) return 'tradicional';
+    if(EQUIPOS.social.some(m => n === m || n.includes(m) || m.includes(n) || (shortN.length > 4 && m.includes(shortN)))) return 'social';
+  }
   return 'general';
 }
 function equipoLabel(eq){
@@ -288,7 +308,7 @@ let selP='', tab='post', userTab='resultados', msg='';
 let vistaRk='equipo';
 let vistaNeg='equipo';
 let adminFiltroEq='global';
-let editIndId=null, editIncId=null;
+let editIndId=null, editIncId=null, editUsrCed=null;
 let hayActualizacion=false, pollTimer=null, lastSignature=null;
 
 async function rpc(fn,body){
@@ -306,7 +326,12 @@ async function loadExtras(){
   }catch(e){ NEGATIVOS = []; }
   try{
     const eqRows = await rpc('listar_equipos', {}) || [];
-    eqRows.forEach(r => { if(r.cedula && r.equipo) ASIGNACIONES_EQ[String(r.cedula)] = r.equipo; });
+    const freshMap = {};
+    eqRows.forEach(r => {
+      if(r.cedula && r.equipo) freshMap['ced:' + String(r.cedula)] = r.equipo;
+      if(r.nombre && r.equipo) freshMap['nom:' + norm(r.nombre)] = r.equipo;
+    });
+    ASIGNACIONES_EQ = { ...ASIGNACIONES_EQ, ...freshMap };
     localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
   }catch(e){}
 }
@@ -750,10 +775,39 @@ async function guardarInc(){
   await g('admin_incentivo', payload);
 }
 
-// ---------- Edición de Equipo por Persona (Admin) ----------
+// ---------- Edición de Nombre y Equipo por Persona (Admin) ----------
+function editarPersona(ced, nombre){
+  editUsrCed = ced;
+  drawAdmin();
+  $('#uc').value = ced;
+  $('#uc').readOnly = true;
+  $('#un').value = nombre;
+  $('#uk').value = '';
+  $('#un').focus();
+}
+function cancelarEditarPersona(){
+  editUsrCed = null;
+  drawAdmin();
+}
+async function guardarPersona(){
+  const ced = $('#uc').value.trim();
+  const nombre = $('#un').value.trim();
+  const clave = $('#uk').value;
+  if(!ced || !nombre){ alert('Ingresa cédula y nombre'); return; }
+  const eqActual = getEquipo(nombre, ced);
+  editUsrCed = null;
+  await g('admin_usuario', {p_ced: ced, p_nombre: nombre, p_clave: clave});
+  // Sincronizar también el nombre en la asignación de equipo
+  ASIGNACIONES_EQ['ced:' + ced] = eqActual;
+  ASIGNACIONES_EQ['nom:' + norm(nombre)] = eqActual;
+  localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
+  try{ await rpc('admin_usuario_equipo', {p_admin: S.clave, p_ced: ced, p_equipo: eqActual}); }catch(e){}
+  notify('✔ Persona actualizada', `Datos de ${nombre} guardados para toda la operación.`, 'success');
+}
+
 async function cambiarEquipoPersona(ced, nombre){
   const eq = $('#eq-' + ced).value;
-  ASIGNACIONES_EQ[String(ced)] = eq;
+  ASIGNACIONES_EQ['ced:' + String(ced)] = eq;
   ASIGNACIONES_EQ['nom:' + norm(nombre)] = eq;
   localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
   try{
@@ -779,13 +833,20 @@ function drawAdmin(){
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
     <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (1 cumplió, 0 no cumplió).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
     <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
-  per:()=>`<div class="card"><input id="uc" placeholder="Cédula"><input id="un" placeholder="Nombre"><input id="uk" placeholder="Clave (vacía = no cambiar)">
-    <button onclick="g('admin_usuario',{p_ced:$('#uc').value.trim(),p_nombre:$('#un').value.trim(),p_clave:$('#uk').value})">Guardar persona</button></div>`
+  per:()=>`<div class="card">
+    <h3 style="margin-bottom:8px">${editUsrCed ? 'Editar persona (Cédula ' + esc(editUsrCed) + ')' : 'Agregar o actualizar persona'}</h3>
+    <input id="uc" placeholder="Cédula">
+    <input id="un" placeholder="Nombre completo">
+    <input id="uk" placeholder="Clave (vacía = mantener clave actual)">
+    <button onclick="guardarPersona()">${editUsrCed ? 'Actualizar nombre / clave' : 'Guardar persona'}</button>
+    ${editUsrCed ? `<button class="sec" style="margin-left:6px" onclick="cancelarEditarPersona()">Cancelar</button>` : ''}
+  </div>`
     +D.usuarios.map(u=>{
       const eqAct = getEquipo(u.nombre, u.cedula);
       return `<div class="card row">
         <div><b>${esc(u.nombre)}</b> ${equipoLabel(eqAct)} <span class="mute">${esc(u.cedula)}</span></div>
         <div class="row" style="gap:6px">
+          <button class="sec" onclick="editarPersona('${esc(u.cedula)}','${esc(u.nombre).replace(/'/g,"\\'")}')">Editar nombre</button>
           <select id="eq-${esc(u.cedula)}" style="width:auto;margin:0;padding:6px 10px">
             <option value="tradicional" ${eqAct==='tradicional'?'selected':''}>Tradicional</option>
             <option value="social" ${eqAct==='social'?'selected':''}>Social</option>
@@ -836,7 +897,7 @@ function drawAdmin(){
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
-  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
+  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
   ${v}
   <div class="row" style="margin:28px 0 10px">
     <h2 style="margin:0">Ranking actual</h2>
