@@ -141,6 +141,43 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .dw ul{margin:6px 0 0;padding-left:18px}
 .dw .ex{background:var(--bg);border-radius:10px;padding:12px;font-size:.92rem}
 .dw .cl{position:absolute;top:10px;right:12px;background:none;color:var(--mute);font-size:1.4rem;padding:2px 10px}
+.mis{background:linear-gradient(135deg,#0e8f83,#0a5f8f);color:#fff;border:0;position:relative;overflow:hidden}
+.mis h3{font-size:1.25rem;margin-bottom:4px}
+.mis p{margin:4px 0 10px;color:#e3f6f3}
+.mis .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.mis .chip{background:rgba(255,255,255,.18);border-radius:20px;padding:3px 12px;font-size:.85rem;font-weight:600}
+.mis .chip.g{background:var(--gold);color:#222}
+.mis .btns{display:flex;flex-wrap:wrap;gap:8px}
+.mis button{background:#fff;color:#0a5f8f}
+.mis button.sec{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)}
+.card.gap{background:linear-gradient(135deg,rgba(14,143,131,.16),rgba(224,165,38,.2));border-color:var(--gold)}
+.stats div:nth-child(1){border-top:4px solid var(--gold)}.stats div:nth-child(2){border-top:4px solid var(--coral)}.stats div:nth-child(3){border-top:4px solid var(--teal)}.stats div:nth-child(4){border-top:4px solid #4a7fd1}
+.shd{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:5px solid var(--gold)}
+.shd .tag{background:var(--gold);color:#222;font-weight:800}
+.inc{position:relative;border:2px solid var(--line);padding:18px 16px 14px;overflow:hidden}
+.inc .pr{display:flex;align-items:center;gap:12px}
+.inc .pr .gift{font-size:2.4rem;line-height:1}
+.inc .pr b{font-size:1.25rem;display:block;line-height:1.15}
+.inc .pr span{color:var(--mute);font-size:.9rem}
+.inc .rb{position:absolute;top:0;right:0;background:var(--teal);color:#fff;font-size:.72rem;font-weight:800;letter-spacing:.04em;padding:4px 12px;border-radius:0 0 0 10px}
+.inc.prox{border-color:var(--teal);box-shadow:0 0 0 3px rgba(14,143,131,.18)}
+.inc.cerca{border-color:var(--gold);box-shadow:0 0 0 3px rgba(224,165,38,.28)}
+.inc.cerca .rb,.inc.lg .rb{background:var(--gold);color:#222}
+@media(prefers-reduced-motion:no-preference){.inc.cerca{animation:glw 2.2s ease-in-out infinite}}
+@keyframes glw{50%{box-shadow:0 0 0 7px rgba(224,165,38,.12)}}
+.inc.lg{border-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.2),transparent)}
+.inc .nums{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin:12px 0 4px}
+.inc .nums .big{font-size:2.3rem;font-weight:800;line-height:1;color:var(--teal)}
+.inc.cerca .nums .big{color:var(--gold)}
+.inc .track{height:16px;border-radius:8px}
+.inc .how{background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:.9rem}
+.inc .how ul{margin:4px 0 0;padding-left:18px}
+.inc .how li{margin:2px 0}
+.ib{display:grid;grid-template-columns:1fr;gap:4px;padding:12px 16px}
+.ib .tp{display:flex;justify-content:space-between;gap:10px}
+.ib .tr{height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.ib .tr i{display:block;height:100%;border-radius:5px;transition:width .6s}
+.opp{background:linear-gradient(135deg,rgba(214,84,63,.14),rgba(224,165,38,.16));border:1px dashed var(--coral)}
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
 </style>
@@ -207,13 +244,12 @@ function drawUser(){
     ${podio(rk)}${rankList(rk)}</aside>
   <section>
   ${compet(rk,i,pts)}
-  <h2>🎁 Incentivos del mes</h2>
-  ${D.incentivos.map(n=>{const f=Math.min(100,pts/n.meta*100),ok=pts>=n.meta;return `<div class="card"><div class="row"><b>${esc(n.nombre)}</b><span>${esc(n.premio)}</span></div>
-  <div class="track ${ok?'ok':''}"><i style="width:${f}%"></i></div>
-  <span class="mute">${ok?'¡Lo lograste! 🎉':`Llevas ${pts} de ${n.meta} puntos. Te faltan ${n.meta-pts}.`}</span></div>`}).join('')||'<p class="mute">Aún no hay incentivos definidos para este mes.</p>'}
-  <h2>📊 Mis indicadores</h2>${D.indicadores.map(n=>`<div class="card row"><span>${esc(n.nombre)}<br><span class="mute">${n.puntos} puntos por día cumplido</span></span><b>${n.dias} días · ${n.dias*n.puntos} pts</b></div>`).join('')}
-  <h2>📅 Mis días</h2>${dias()}
-  <h2 id="postular">✨ Postular una atención increíble</h2>
+  ${mision()}
+  <h2 class="shd">🎁 Incentivos activos <span class="tag">${D.incentivos.length}</span></h2>
+  ${incCards(pts)}
+  <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
+  <h2 class="shd">📅 Mis días</h2>${dias()}
+  <h2 id="postular" class="shd">✨ Postular una atención increíble</h2>
   <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
   <input id="nc" maxlength="60" placeholder="Número de caso">
   <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
@@ -343,6 +379,45 @@ function posView(){
 }
 // ---------- Usuario: pop-up lateral que explica cómo sumar ----------
 let popOpen=false;
+// ---------- Vista de usuario: misión, incentivos y indicadores llamativos ----------
+const dd=n=>n+(n===1?' día':' días');
+const perfectDay=()=>D.indicadores.reduce((a,x)=>a+x.puntos,0);
+function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
+function mision(){
+  const pd=perfectDay(),n=D.indicadores.length;
+  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+7} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>7 más</b> si una atención tuya es aprobada como increíble.</p>
+  <div class="chips">${D.indicadores.map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +7</span></div>
+  <div class="btns"><button onclick="popPost()">✨ Postular una atención</button><button class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
+}
+function incCards(pts){
+  const inc=D.incentivos.slice().sort((a,b)=>a.meta-b.meta),pd=perfectDay(),r=ritmo(),nx=inc.find(n=>pts<n.meta);
+  if(!inc.length)return '<p class="mute">Aún no hay incentivos definidos para este mes.</p>';
+  return inc.map(n=>{
+    const pct=Math.min(100,Math.round(pts/n.meta*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80,prox=n===nx&&!cerca;
+    const rb=ok?'¡LOGRADO! 🎉':cerca?'¡CASI LO TIENES! 🔥':prox?'TU PRÓXIMO PREMIO':'';
+    let how='';
+    if(!ok&&pd){
+      const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-7)/pd),pl=k=>k===1?'':'s';
+      how=`<div class="how"><b>🧭 ¿Cómo lo logro?</b><ul>`
+      +(falta<=7?`<li>¡Una sola <b>atención increíble aprobada</b> (+7 pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+7) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
+      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) llegarías en unos <b>${dd(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
+    }
+    return `<div class="card inc ${ok?'lg':cerca?'cerca':prox?'prox':''}">${rb?`<span class="rb">${rb}</span>`:''}
+    <div class="pr"><span class="gift">${ok?'🏆':'🎁'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · meta ${n.meta} pts</span></div></div>
+    <div class="nums"><div>${ok?'<span class="big">¡Meta cumplida!</span>':`<span class="big">${falta}</span> <span class="mute">pts para ganarlo</span>`}</div><b>${pct}%</b></div>
+    <div class="track ${ok?'ok':''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
+    <span class="mute">Llevas ${pts} de ${n.meta} puntos${ok?'. ¡Felicitaciones!':''}</span>${how}</div>`;
+  }).join('');
+}
+function misInd(){
+  const d=(H&&H.dias)||[],st={};
+  d.forEach(x=>x.indicadores.forEach(i=>{const q=st[i.nombre]=st[i.nombre]||{ok:0,t:0};q.t++;if(i.cumplido)q.ok++}));
+  const rows=D.indicadores.map(i=>{const q=st[i.nombre]||{ok:0,t:0};return{...i,ok:q.ok,t:q.t,perd:(q.t-q.ok)*i.puntos}});
+  const opp=rows.filter(x=>x.perd>0).sort((a,b)=>b.perd-a.perd)[0];
+  return rows.map(x=>{const p=x.t?Math.round(x.ok/x.t*100):0;return `<div class="card ib"><div class="tp"><span><b>${esc(x.nombre)}</b> <span class="mute">· ${x.puntos} pts por día cumplido</span></span><b>${x.dias*x.puntos} pts</b></div><div class="tr" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p}%;background:${p>=80?'var(--teal)':p>=50?'var(--gold)':'var(--coral)'}"></i></div><span class="mute">${x.t?`Lo cumpliste ${x.ok} de ${dd(x.t)} (${p}%)`:'Aún sin registros este mes'}</span></div>`}).join('')
+  +(opp?`<div class="card opp"><b>💎 Tu mayor oportunidad: ${esc(opp.nombre)}</b><br><span>Este mes dejaste de sumar <b>${opp.perd} pts</b> aquí (${dd(opp.t-opp.ok)} sin cumplir × ${opp.puntos} pts). Cumplirlo cada día es el camino más rápido para subir.</span></div>`:'');
+}
+
 function popHide(){const e=document.getElementById('pop');if(e)e.remove();const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.remove();if(d)d.remove();popOpen=false}
 function popShow(){
   popHide();if(!D||S.a)return;
