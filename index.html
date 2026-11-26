@@ -40,6 +40,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .tag.pendiente{background:rgba(124,77,255,.16);color:var(--purple);border:1px solid rgba(124,77,255,.35)}
 .tag.aceptada{background:rgba(14,143,131,.16);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
 .tag.oblig{background:rgba(214,84,63,.16);color:var(--coral);border:1px solid rgba(214,84,63,.45)}
+.tag.badge-pill{background:linear-gradient(135deg,rgba(244,196,78,.28),rgba(224,165,38,.22));color:var(--ink);border:1px solid var(--gold)}
 .tag.feedback,.tag.neg{background:var(--coral);color:#fff}
 .tag.eq-trad{background:#1e6091;color:#fff}
 .tag.eq-soc{background:var(--purple);color:#fff}
@@ -231,6 +232,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .chk-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;max-height:200px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;margin:6px 0 10px}
 .chk-item{display:flex;align-items:center;gap:8px;font-size:.88rem;cursor:pointer;margin:0}
 .chk-item input{width:auto;margin:0}
+.badges-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.badge-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;background:linear-gradient(135deg,rgba(244,196,78,.24),rgba(224,165,38,.14));border:1px solid var(--gold);font-size:.88rem;font-weight:700}
 
 .neg-card{border-left:5px solid var(--coral)}
 .board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px}
@@ -250,7 +253,6 @@ const URL_='https://ucpifysuxxgyiyahfkgg.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjcGlmeXN1eHhneWl5YWhma2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTA0NTQsImV4cCI6MjExMTE4NjQ1NH0.uYTSzRJ_hKwiovyTK-r6meRBnNCQeoKlIWADkM6ED6E';
 // ================================================================
 
-// ====== DEFINICIÓN DE EQUIPOS Y ASIGNACIONES EDITABLES ======
 const EQUIPOS = {
   tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
   social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
@@ -335,6 +337,7 @@ const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
 let MISIONES=[], NEGATIVOS=[];
+let OPCIONES_CONDUCTA = JSON.parse(localStorage.getItem('opciones_conducta_local') || '["Mal lenguaje","Actitud grosera","Comportamiento errado"]');
 let MISIONES_LOCAL = JSON.parse(localStorage.getItem('misiones_estado_local') || '{}');
 let MISIONES_META_LOCAL = JSON.parse(localStorage.getItem('misiones_meta_local') || '{}');
 let selP='', tab='post', userTab='resultados', msg='';
@@ -361,23 +364,28 @@ function setEstadoLocalMision(misionId, estado){
   MISIONES_LOCAL[k][String(misionId)] = estado;
   localStorage.setItem('misiones_estado_local', JSON.stringify(MISIONES_LOCAL));
 }
-function saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas){
+function saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas, insigniaNombre, insigniaIcono){
   MISIONES_META_LOCAL[norm(titulo)] = {
     obligatoria: !!obligatoria,
     asignacion_tipo: asignacionTipo || 'todos',
-    asignados_cedulas: asignadosCedulas || []
+    asignados_cedulas: asignadosCedulas || [],
+    insignia_nombre: insigniaNombre || ('Insignia: ' + titulo),
+    insignia_icono: insigniaIcono || '🏅'
   };
   localStorage.setItem('misiones_meta_local', JSON.stringify(MISIONES_META_LOCAL));
 }
 function enrichMisiones(rawList){
   return (rawList || []).map(m => {
-    const metaLoc = MISIONES_META_LOCAL[norm(m.titulo || m.nombre)] || {};
+    const titulo = m.titulo || m.nombre || 'Misión';
+    const metaLoc = MISIONES_META_LOCAL[norm(titulo)] || {};
     const obligatoria = typeof m.obligatoria === 'boolean' ? m.obligatoria : !!metaLoc.obligatoria;
     const asignacion_tipo = m.asignacion_tipo || metaLoc.asignacion_tipo || 'todos';
     const asignados_cedulas = Array.isArray(m.asignados_cedulas) && m.asignados_cedulas.length
       ? m.asignados_cedulas.map(String)
       : (metaLoc.asignados_cedulas || []).map(String);
-    return { ...m, obligatoria, asignacion_tipo, asignados_cedulas };
+    const insignia_nombre = (m.insignia_nombre && m.insignia_nombre.trim()) || metaLoc.insignia_nombre || ('Insignia: ' + titulo);
+    const insignia_icono = (m.insignia_icono && m.insignia_icono.trim()) || metaLoc.insignia_icono || '🏅';
+    return { ...m, titulo, obligatoria, asignacion_tipo, asignados_cedulas, insignia_nombre, insignia_icono };
   });
 }
 
@@ -389,6 +397,13 @@ async function loadExtras(){
   try{
     NEGATIVOS = await rpc('listar_negativos', {}) || [];
   }catch(e){ NEGATIVOS = []; }
+  try{
+    const ops = await rpc('listar_opciones_conducta', {});
+    if(Array.isArray(ops) && ops.length){
+      OPCIONES_CONDUCTA = ops;
+      localStorage.setItem('opciones_conducta_local', JSON.stringify(OPCIONES_CONDUCTA));
+    }
+  }catch(e){}
   try{
     const eqRows = await rpc('listar_equipos', {}) || [];
     const freshMap = {};
@@ -538,6 +553,15 @@ function getMisionesVisiblesUsuario(){
     .filter(m => m.obligatoria || m._est !== 'omitida');
 }
 
+function getInsigniasGanadasUsuario(){
+  return (MISIONES || [])
+    .filter(esMisionParaUsuario)
+    .filter(m => {
+      const loc = getEstadoLocalMision(m.id);
+      return !!m.completada || m.estado_usuario === 'aprobada' || loc === 'aprobada';
+    });
+}
+
 function drawUser(){
   const miEq = getEquipo(D.nombre, S.ced);
   const rkGlobal = D.ranking || [];
@@ -553,12 +577,32 @@ function drawUser(){
   const cantDias = (H && H.dias && H.dias.length) ? H.dias.length : 0;
   const misionesVisibles = getMisionesVisiblesUsuario();
   const obligPendientes = misionesVisibles.filter(m => m.obligatoria && !m.completada && m._est !== 'pendiente').length;
+  const insigniasGanadas = getInsigniasGanadasUsuario();
 
   const navUser = `<div class="tabs">
     <button class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen y Premios</button>
     <button class="${userTab==='dias'?'on':''}" onclick="userTab='dias';drawUser()">📅 Mi Día a Día (${cantDias})</button>
-    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones y Retos (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
+    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
     <button class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento</button>
+  </div>`;
+
+  const bloqueInsignias = `<div class="card" style="border-left:5px solid var(--gold)">
+    <div class="row">
+      <div>
+        <h3 style="margin:0">🏅 Mis insignias ganadas (${insigniasGanadas.length})</h3>
+        <div class="mute">Se desbloquean cuando el admin valida una misión completada. Haz clic para compartir su imagen.</div>
+      </div>
+    </div>
+    ${insigniasGanadas.length
+      ? `<div class="badges-grid">${insigniasGanadas.map(m => `
+          <button class="badge-chip" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos}, '${esc(m.insignia_icono).replace(/'/g,"\\'")}', '${esc(m.insignia_nombre).replace(/'/g,"\\'")}')">
+            <span>${esc(m.insignia_icono)}</span>
+            <span>${esc(m.insignia_nombre)}</span>
+            <span class="mute" style="font-size:.78rem">· Compartir</span>
+          </button>
+        `).join('')}</div>`
+      : '<p class="mute" style="margin:8px 0 0">Aún no has ganado insignias de misiones validas este mes.</p>'
+    }
   </div>`;
 
   let cuerpoUser = '';
@@ -567,15 +611,15 @@ function drawUser(){
       <div class="row">
         <div>
           <h2 style="margin:0">📅 Tu detalle día a día</h2>
-          <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, el detalle de tus indicadores (promotores y detractores donde aplique) y tu comparación con el equipo.</p>
+          <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, el detalle de tus indicadores y tu comparación con el equipo.</p>
         </div>
         <button class="sec" onclick="userTab='resultados';drawUser()">← Volver al resumen</button>
       </div>
     </div>` + dias();
   }else if(userTab === 'misiones'){
-    cuerpoUser = `<div class="card">
+    cuerpoUser = bloqueInsignias + `<div class="card">
       <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
-      <p class="mute">Las misiones <b>obligatorias</b> deben completarse y no pueden omitirse. Las opcionales puedes aceptarlas u omitirlas.</p>
+      <p class="mute">Las misiones <b>obligatorias</b> deben completarse y no pueden omitirse. Cuando la misión esté completada y marcada como validada, puedes compartir tu imagen de logro e insignia.</p>
     </div>` + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
@@ -599,6 +643,7 @@ function drawUser(){
     <section>
     ${compet(rkActivo,iAct,pts)}
     ${mision()}
+    ${bloqueInsignias}
     <h2 class="shd">✨ Premios a conseguir <span class="tag">${D.incentivos.length}</span></h2>
     ${incCards(pts)}
     <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
@@ -644,7 +689,7 @@ function drawUser(){
   ${cuerpoUser}`;
 }
 
-// ---------- Misiones y Retos (Usuario: Obligatoria / Opcional, Aceptar, Tiempo restante en vivo, Omitir, Completar) ----------
+// ---------- Misiones y Retos (Usuario) ----------
 function tiempoRestante(fechaLimite){
   if(!fechaLimite) return 'Sin límite de tiempo';
   const diff = new Date(fechaLimite) - new Date();
@@ -671,6 +716,7 @@ function seccionRetosUsuario(){
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
           <span class="tag ${completada?'aprobada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">+${m.puntos} pts</span>
+          <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria
             ? '<span class="tag oblig" style="margin-left:4px">🔒 Misión obligatoria</span>'
             : '<span class="tag" style="margin-left:4px">Opcional</span>'}
@@ -680,13 +726,13 @@ function seccionRetosUsuario(){
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
-        <b>📸 Evidencia:</b> ${m.obligatoria ? 'Esta misión es <b>obligatoria</b> y no se puede omitir. ' : ''}Envía la foto/captura al jefe y marca que la completaste para validar tus puntos.
+        <b>📸 Evidencia:</b> ${m.obligatoria ? 'Esta misión es <b>obligatoria</b> y no se puede omitir. ' : ''}Envía la foto/captura al jefe y marca que la completaste para validar tus puntos y desbloquear tu insignia.
       </div>
       <div style="margin-top:8px">
         ${completada
           ? `<div class="row">
-               <span class="ok">✔ ¡Misión validada y completada!</span>
-               <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>
+               <span class="ok">✔ ¡Misión completada y validada! Insignia ganada: <b>${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</b></span>
+               <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos}, '${esc(m.insignia_icono).replace(/'/g,"\\'")}', '${esc(m.insignia_nombre).replace(/'/g,"\\'")}')">📤 Compartir imagen de logro</button>
              </div>`
           : pendienteVal
             ? `<span class="tag pendiente">⏳ Completada · Esperando validación del admin</span>`
@@ -767,11 +813,11 @@ async function marcarMisionCompletada(misionId){
       });
     }catch(err){}
   }
-  notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos.', 'success');
+  notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos e insignia.', 'success');
   await load();
 }
 
-async function copiarImagenLogro(tituloMision, puntos){
+async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nombreInsignia='Insignia de Misión'){
   try{
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 480;
@@ -788,43 +834,51 @@ async function copiarImagenLogro(tituloMision, puntos){
     ctx.strokeRect(24, 24, 852, 432);
 
     ctx.fillStyle = '#e0a526';
-    ctx.font = 'bold 28px system-ui, sans-serif';
-    ctx.fillText('🏆 MISIÓN CUMPLIDA · OPERACIÓN', 60, 88);
+    ctx.font = 'bold 26px system-ui, sans-serif';
+    ctx.fillText('🏆 MISIÓN VALIDADA · LOGRO DESBLOQUEADO', 60, 82);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 46px system-ui, sans-serif';
-    ctx.fillText(D.nombre, 60, 165);
+    ctx.font = 'bold 44px system-ui, sans-serif';
+    ctx.fillText(D.nombre, 60, 152);
 
     ctx.fillStyle = '#b9c7d6';
-    ctx.font = '26px system-ui, sans-serif';
-    ctx.fillText('Completó exitosamente el reto:', 60, 225);
+    ctx.font = '24px system-ui, sans-serif';
+    ctx.fillText('Misión completada y validada:', 60, 206);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 34px system-ui, sans-serif';
-    ctx.fillText(`"${tituloMision}"`, 60, 278);
+    ctx.font = 'bold 32px system-ui, sans-serif';
+    ctx.fillText(`"${tituloMision}"`, 60, 252);
+
+    ctx.fillStyle = 'rgba(224,165,38,0.22)';
+    ctx.beginPath();
+    ctx.roundRect(60, 274, 780, 48, 12);
+    ctx.fill();
+    ctx.fillStyle = '#ffd56b';
+    ctx.font = 'bold 24px system-ui, sans-serif';
+    ctx.fillText(`${iconoInsignia} Insignia ganada: ${nombreInsignia}`, 78, 306);
 
     ctx.fillStyle = '#e0a526';
     ctx.beginPath();
-    ctx.roundRect(60, 325, 250, 64, 32);
+    ctx.roundRect(60, 342, 240, 62, 31);
     ctx.fill();
     ctx.fillStyle = '#1a1a1a';
-    ctx.font = 'bold 32px system-ui, sans-serif';
-    ctx.fillText(`+${puntos} PUNTOS`, 88, 368);
+    ctx.font = 'bold 30px system-ui, sans-serif';
+    ctx.fillText(`+${puntos} PUNTOS`, 88, 383);
 
     ctx.fillStyle = '#e3f6f3';
     ctx.font = '22px system-ui, sans-serif';
-    ctx.fillText(`Equipo: ${getEquipo(D.nombre, S.ced).toUpperCase()} · ${new Date().toLocaleDateString('es')}`, 340, 366);
+    ctx.fillText(`Equipo: ${getEquipo(D.nombre, S.ced).toUpperCase()} · ${new Date().toLocaleDateString('es')}`, 330, 381);
 
     canvas.toBlob(async blob => {
       try{
         await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
-        notify('📋 ¡Imagen copiada!', 'Pégala (Ctrl+V) en tu chat o grupo para compartir tu logro.', 'success');
+        notify('📤 ¡Imagen de logro lista!', 'Se copió la imagen al portapapeles; pégala (Ctrl+V) para compartirla.', 'success');
       }catch(err){
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `logro-${norm(tituloMision)}.png`;
         a.click();
-        notify('📥 Imagen descargada', 'Tu navegador bloqueó el copiado directo; se descargó la imagen.', 'info');
+        notify('📥 Imagen descargada', 'Se descargó la imagen de logro para que la compartas.', 'info');
       }
     }, 'image/png');
   }catch(e){
@@ -860,6 +914,13 @@ function construirTableroGeneralConducta(filtroEq='global'){
   }).join('') + `</div>`;
 }
 
+function opcionesConductaSelectHtml(idSelect='neg-tipo'){
+  const list = (OPCIONES_CONDUCTA && OPCIONES_CONDUCTA.length)
+    ? OPCIONES_CONDUCTA
+    : ['Mal lenguaje', 'Actitud grosera', 'Comportamiento errado'];
+  return `<select id="${idSelect}">${list.map(op => `<option value="${esc(op)}">${esc(op)}</option>`).join('')}</select>`;
+}
+
 function seccionNegativosUsuario(miEq){
   const todos = D.ranking || [];
   const filtrados = vistaNeg === 'global'
@@ -888,11 +949,7 @@ function seccionNegativosUsuario(miEq){
       </div>
       <div>
         <label style="font-size:.85rem">Tipo de conducta</label>
-        <select id="neg-tipo">
-          <option value="Mal lenguaje">Mal lenguaje</option>
-          <option value="Actitud grosera">Actitud grosera</option>
-          <option value="Comportamiento errado">Comportamiento errado</option>
-        </select>
+        ${opcionesConductaSelectHtml('neg-tipo')}
       </div>
     </div>
     <input id="neg-mot" maxlength="300" placeholder="Describe brevemente lo sucedido">
@@ -942,24 +999,19 @@ function podio(rk){
   return `<div class="podio">${t.map((x,k)=>`<div class="c p${pos[k]} ${x.yo?'yo':''}"><div class="nm">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bl">${['🥈','🥇','🥉'][k]}<small>${x.puntos} pts</small></div></div>`).join('')}</div>`;
 }
 
-// ---------- Detalle de Indicador en Día a Día (Promotores / Detractores adaptado al usuario) ----------
+// ---------- Detalle de Indicador en Día a Día (Sin mensaje vacío de promotores/detractores) ----------
 function renderDetalleIndicadorDia(ind){
-  const nLower = norm(ind.nombre);
-  const esNpsOrCsat = nLower.includes('nps') || nLower.includes('csat');
   const pro = ind.promotores ?? ind.promotor ?? ind.positivos ?? null;
   const det = ind.detractores ?? ind.detractor ?? ind.negativos ?? null;
   const neu = ind.neutros ?? ind.neutro ?? null;
   const detTexto = ind.detalle || ind.observacion || ind.nota || null;
 
   const pills = [];
-  if(pro !== null && pro !== undefined) pills.push(`<span class="pill-ind pro">👍 Promotores: <b>${esc(pro)}</b></span>`);
-  if(det !== null && det !== undefined) pills.push(`<span class="pill-ind det">👎 Detractores: <b>${esc(det)}</b></span>`);
-  if(neu !== null && neu !== undefined) pills.push(`<span class="pill-ind">😐 Neutros: <b>${esc(neu)}</b></span>`);
+  if(pro !== null && pro !== undefined && pro !== '') pills.push(`<span class="pill-ind pro">👍 Promotores: <b>${esc(pro)}</b></span>`);
+  if(det !== null && det !== undefined && det !== '') pills.push(`<span class="pill-ind det">👎 Detractores: <b>${esc(det)}</b></span>`);
+  if(neu !== null && neu !== undefined && neu !== '') pills.push(`<span class="pill-ind">😐 Neutros: <b>${esc(neu)}</b></span>`);
   if(detTexto) pills.push(`<span class="pill-ind">${esc(detTexto)}</span>`);
 
-  if(!pills.length && esNpsOrCsat){
-    pills.push(`<span class="pill-ind">Sin desglose de promotores/detractores cargado en este día</span>`);
-  }
   return pills.length ? `<div class="ind-meta">${pills.join('')}</div>` : '';
 }
 
@@ -1089,7 +1141,7 @@ async function cambiarEquipoPersona(ced, nombre){
 }
 
 // ---------- Vista del administrador ----------
-const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones y Retos',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
+const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
   const rkFiltrado = adminFiltroEq==='global'
     ? D.ranking
@@ -1200,7 +1252,7 @@ function drawAdmin(){
   if(tab==='dia')avisoFecha();
 }
 
-// ---------- Admin: Gestión de Misiones y Retos + Obligatorias + Asignación ----------
+// ---------- Admin: Gestión de Misiones, Insignias y Aprobaciones ----------
 function toggleSelectorAlgunos(){
   const sel = $('#m-asig-tipo');
   const box = $('#m-algunos-box');
@@ -1223,35 +1275,49 @@ function adminMisionesView(){
   const pendientesList = [];
   MISIONES.forEach(m => {
     (m.pendientes_validacion || []).forEach(pv => {
-      pendientesList.push({ ...pv, mision_id: m.id, mision_titulo: m.titulo, mision_puntos: m.puntos });
+      pendientesList.push({
+        ...pv,
+        mision_id: m.id,
+        mision_titulo: m.titulo,
+        mision_puntos: m.puntos,
+        insignia_nombre: m.insignia_nombre,
+        insignia_icono: m.insignia_icono
+      });
     });
   });
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
-    <h3 style="margin-bottom:6px">📥 Misiones completadas por validar (${pendientesList.length})</h3>
-    <p class="mute" style="margin-top:0">Personas que marcaron la misión como completada y están esperando tu validación para recibir los puntos.</p>
-    ${pendientesList.length ? pendientesList.map(item => `
-      <div class="val-box row" style="margin-bottom:8px">
+    <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión (por aprobar: ${pendientesList.length})</h3>
+    <p class="mute" style="margin-top:0">Revisa quién marcó la misión como completada y apruébala para otorgar los puntos y la insignia.</p>
+    ${pendientesList.length ? pendientesList.map(item => {
+      const fechaSol = item.solicitada_en ? new Date(item.solicitada_en).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="val-box row" style="margin-bottom:8px">
         <div>
-          <b>${esc(item.nombre)}</b> ${equipoLabel(getEquipo(item.nombre, item.cedula))} completó <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span>
+          <div><b>${esc(item.nombre)}</b> <span class="mute">(CC ${esc(item.cedula)})</span> ${equipoLabel(getEquipo(item.nombre, item.cedula))}</div>
+          <div style="margin-top:3px">Marcó completada: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
           ${item.nota ? `<div class="mute" style="margin-top:3px">Evidencia / nota: ${esc(item.nota)}</div>` : ''}
+          ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Marcada el: ${esc(fechaSol)}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px">
-          <button onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Validar y dar ${item.mision_puntos} pts</button>
+          <button onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Aprobar y dar insignia</button>
           <button class="sec" style="color:var(--coral)" onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', false)">Rechazar</button>
         </div>
-      </div>
-    `).join('') : '<p class="mute" style="margin:0">No hay misiones marcadas como completadas pendientes de validar.</p>'}
+      </div>`;
+    }).join('') : '<p class="mute" style="margin:0">Ningún usuario tiene misiones pendientes de aprobación en este momento.</p>'}
   </div>`;
 
   return `${bandejaPendientes}
   <div class="card">
-    <h3 style="margin-bottom:8px">Crear nueva misión o reto</h3>
+    <h3 style="margin-bottom:8px">Crear nueva misión o reto con insignia</h3>
     <input id="m-tit" placeholder="Nombre de la misión (ej: Cero recontactos hoy)">
     <textarea id="m-desc" rows="2" placeholder="Descripción o reglas del reto"></textarea>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div><label style="font-size:.85rem">Puntos que otorga</label><input id="m-pts" type="number" placeholder="Ej: 10"></div>
       <div><label style="font-size:.85rem">Disponible hasta (fecha y hora)</label><input id="m-lim" type="datetime-local"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:8px">
+      <div><label style="font-size:.85rem">Ícono insignia</label><input id="m-ins-ico" value="🏅" maxlength="8"></div>
+      <div><label style="font-size:.85rem">Nombre de la insignia que gana el usuario</label><input id="m-ins-nom" placeholder="Ej: Maestro de Cero Recontactos (vacío = automático)"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
       <div>
@@ -1279,20 +1345,23 @@ function adminMisionesView(){
         `).join('')}
       </div>
     </div>
-    <button onclick="crearMision()">Publicar misión</button>
+    <button onclick="crearMision()">Publicar misión e insignia</button>
   </div>
   <h2>Misiones activas y validación manual</h2>
-  ${MISIONES.length ? MISIONES.map(m => `
-    <div class="card reto-card ${m.obligatoria?'oblig-card':''}">
+  ${MISIONES.length ? MISIONES.map(m => {
+    const marcadasPend = m.pendientes_validacion || [];
+    return `<div class="card reto-card ${m.obligatoria?'oblig-card':''}">
       <div class="row">
         <div>
           <b>${esc(m.titulo)}</b>
           <span class="tag aprobada" style="margin-left:6px">+${m.puntos} pts</span>
+          <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria ? '<span class="tag oblig" style="margin-left:4px">🔒 Obligatoria</span>' : '<span class="tag" style="margin-left:4px">Opcional</span>'}
         </div>
         <button class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
       </div>
       <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <b>${esc(resumenAsignacion(m))}</b> · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
+      ${marcadasPend.length ? `<p style="margin:6px 0 0;font-size:.88rem"><b>Marcada como completada por:</b> ${marcadasPend.map(pv=>`<span class="tag pendiente" style="margin-right:4px">${esc(pv.nombre)} (${esc(pv.cedula)})</span>`).join('')}</p>` : ''}
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
         <label style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
@@ -1303,8 +1372,8 @@ function adminMisionesView(){
         </div>
         ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Validado y completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
       </div>
-    </div>
-  `).join('') : '<p class="mute">No hay misiones creadas aún.</p>'}`;
+    </div>`;
+  }).join('') : '<p class="mute">No hay misiones creadas aún.</p>'}`;
 }
 
 async function crearMision(){
@@ -1317,6 +1386,8 @@ async function crearMision(){
   const asignadosCedulas = asignacionTipo === 'algunos'
     ? Array.from(document.querySelectorAll('.m-asig-ced:checked')).map(el => String(el.value))
     : [];
+  const insigniaIcono = ($('#m-ins-ico').value || '🏅').trim();
+  const insigniaNombre = ($('#m-ins-nom').value || ('Insignia: ' + titulo)).trim();
 
   if(!titulo || !puntos){ alert('Ingresa el nombre de la misión y los puntos'); return; }
   if(asignacionTipo === 'algunos' && !asignadosCedulas.length){
@@ -1324,7 +1395,7 @@ async function crearMision(){
     return;
   }
 
-  saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas);
+  saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas, insigniaNombre, insigniaIcono);
 
   try{
     await g('admin_crear_mision', {
@@ -1334,7 +1405,9 @@ async function crearMision(){
       p_fecha_limite: limite,
       p_obligatoria: obligatoria,
       p_asignacion_tipo: asignacionTipo,
-      p_asignados_cedulas: asignadosCedulas
+      p_asignados_cedulas: asignadosCedulas,
+      p_insignia_nombre: insigniaNombre,
+      p_insignia_icono: insigniaIcono
     });
   }catch(e){
     await g('admin_crear_mision', {
@@ -1344,7 +1417,7 @@ async function crearMision(){
       p_fecha_limite: limite
     });
   }
-  notify('🚀 Misión publicada', `"${titulo}" ${obligatoria?'(obligatoria) ':''}ya está asignada.`, 'success');
+  notify('🚀 Misión e insignia publicadas', `"${titulo}" otorga la insignia ${insigniaIcono} ${insigniaNombre}.`, 'success');
 }
 
 async function aprobarMision(misionId){
@@ -1356,13 +1429,41 @@ async function aprobarMision(misionId){
 async function aprobarMisionDirecto(misionId, ced, aprobar){
   await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced, p_aprobar:aprobar});
   if(aprobar){
-    notify('🏆 Misión validada', 'Se validó el cumplimiento y se habilitaron los puntos e insignia de logro.', 'success');
+    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya puede compartir su imagen de logro con su insignia.', 'success');
   }else{
-    notify('↩ Misión devuelta', 'Se marcó la solicitud como rechazada.', 'warn');
+    notify('↩ Solicitud rechazada', 'Se devolvió la solicitud de validación.', 'warn');
   }
 }
 
-// ---------- Admin: Tablero General y Registro de Conducta (Solo 1 punto) ----------
+// ---------- Admin: Tablero General, Opciones de Conducta y Registro (1 punto) ----------
+async function agregarOpcionConducta(){
+  const inp = $('#nueva-op-conducta');
+  const nom = inp ? inp.value.trim() : '';
+  if(!nom){ alert('Escribe el nombre de la opción de comportamiento'); return; }
+  if(!OPCIONES_CONDUCTA.includes(nom)){
+    OPCIONES_CONDUCTA = [...OPCIONES_CONDUCTA, nom];
+    localStorage.setItem('opciones_conducta_local', JSON.stringify(OPCIONES_CONDUCTA));
+  }
+  try{
+    await rpc('admin_crear_opcion_conducta', {p_admin: S.clave, p_nombre: nom});
+  }catch(e){}
+  notify('✔ Opción agregada', `"${nom}" ya está disponible para reportes de conducta.`, 'success');
+  drawAdmin();
+}
+
+async function borrarOpcionConducta(nombre){
+  if(OPCIONES_CONDUCTA.length <= 1){
+    alert('Debe quedar al menos una opción de comportamiento');
+    return;
+  }
+  OPCIONES_CONDUCTA = OPCIONES_CONDUCTA.filter(x => x !== nombre);
+  localStorage.setItem('opciones_conducta_local', JSON.stringify(OPCIONES_CONDUCTA));
+  try{
+    await rpc('admin_borrar_opcion_conducta', {p_admin: S.clave, p_nombre: nombre});
+  }catch(e){}
+  drawAdmin();
+}
+
 function adminNegativosView(){
   const filtrados = adminFiltroEq==='global'
     ? NEGATIVOS
@@ -1378,15 +1479,28 @@ function adminNegativosView(){
   </div>
   ${construirTableroGeneralConducta(adminFiltroEq)}
 
+  <div class="card" style="border-left:5px solid var(--purple)">
+    <h3 style="margin-bottom:6px">⚙️ Opciones de comportamiento disponibles</h3>
+    <p class="mute" style="margin-top:0">Agrega nuevas opciones de comportamiento para que aparezcan en los reportes de conducta.</p>
+    <div class="row" style="gap:8px">
+      <input id="nueva-op-conducta" placeholder="Ej: No escaló a tiempo, Falta de empatía..." style="margin:0;flex:1">
+      <button onclick="agregarOpcionConducta()">+ Agregar opción</button>
+    </div>
+    <div class="badges-grid" style="margin-top:10px">
+      ${OPCIONES_CONDUCTA.map(op => `
+        <span class="tag" style="padding:5px 10px;display:inline-flex;align-items:center;gap:6px">
+          ${esc(op)}
+          <button class="sec" style="padding:0 5px;font-size:.78rem;color:var(--coral);border:0" onclick="borrarOpcionConducta('${esc(op).replace(/'/g,"\\'")}')">×</button>
+        </span>
+      `).join('')}
+    </div>
+  </div>
+
   <div class="card neg-card">
     <h3 style="margin-bottom:6px">Registrar alerta anónima de conducta (1 pt · No resta puntos)</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select>
-      <select id="neg-tipo">
-        <option value="Mal lenguaje">Mal lenguaje</option>
-        <option value="Actitud grosera">Actitud grosera</option>
-        <option value="Comportamiento errado">Comportamiento errado</option>
-      </select>
+      ${opcionesConductaSelectHtml('neg-tipo')}
     </div>
     <input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
     <button class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
