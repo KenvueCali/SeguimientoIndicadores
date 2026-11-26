@@ -60,6 +60,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .bell-sec:first-of-type{margin-top:6px;padding-top:0;border-top:0}
 .bell-item{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-top:6px;font-size:.88rem}
 
+.live-pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(14,143,131,.14);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulseDot 1.6s infinite}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+
 .seg-switch{display:inline-flex;background:var(--bg);padding:4px;border-radius:10px;border:1px solid var(--line);gap:4px;margin-bottom:10px}
 .seg-switch button{padding:6px 12px;font-size:.85rem;background:transparent;color:var(--mute);border-radius:7px;transform:none}
 .seg-switch button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -230,9 +234,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .toast .cls{background:none;color:#b9c7d6;padding:0 4px;font-size:1.2rem;margin:0}
 @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
 
-.upd-alert{background:linear-gradient(135deg,var(--gold),#f3b83a);color:#222;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;box-shadow:0 4px 14px rgba(224,165,38,.35)}
-.upd-alert button{background:var(--ink);color:#fff;padding:6px 14px;font-size:.88rem}
-
 .reto-card{border-left:5px solid var(--purple)}
 .reto-card.oblig-card{border-left:5px solid var(--coral);background:linear-gradient(145deg,rgba(214,84,63,.06),var(--card))}
 .reto-card.done{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.12),var(--card))}
@@ -259,11 +260,17 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 <body>
 <div id="toast-box" aria-live="polite"></div>
 <main id="app"></main>
-<script>
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 // ====== CONFIGURA ESTO (Supabase > Project Settings > API) ======
 const URL_='https://ucpifysuxxgyiyahfkgg.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjcGlmeXN1eHhneWl5YWhma2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTA0NTQsImV4cCI6MjExMTE4NjQ1NH0.uYTSzRJ_hKwiovyTK-r6meRBnNCQeoKlIWADkM6ED6E';
 // ================================================================
+
+const sb = createClient(URL_, KEY, {
+  realtime: { params: { eventsPerSecond: 20 } }
+});
 
 const EQUIPOS = {
   tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
@@ -322,14 +329,14 @@ function playTone(type='info'){
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = type==='warn' ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.13);
-      gain.gain.setValueAtTime(0.001, now + idx * 0.13);
-      gain.gain.exponentialRampToValueAtTime(0.16, now + idx * 0.13 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.13 + 0.24);
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+      gain.gain.setValueAtTime(0.001, now + idx * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.22);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      osc.start(now + idx * 0.13);
-      osc.stop(now + idx * 0.13 + 0.25);
+      osc.start(now + idx * 0.12);
+      osc.stop(now + idx * 0.12 + 0.23);
     });
   }catch(e){}
 }
@@ -342,7 +349,7 @@ function notify(title, body, type='info', actionHtml=''){
   el.className = 'toast ' + (type==='success'?'ok-t':type==='warn'?'warn-t':'');
   el.innerHTML = `<div><b>${esc(title)}</b><div style="font-size:.88rem;opacity:.92;margin-top:2px">${esc(body)}</div>${actionHtml}</div><button class="cls" aria-label="Cerrar" onclick="this.parentElement.remove()">×</button>`;
   box.appendChild(el);
-  setTimeout(()=>{ if(el.parentElement) el.remove(); }, 9000);
+  setTimeout(()=>{ if(el.parentElement) el.remove(); }, 9500);
 }
 
 const $=s=>document.querySelector(s), app=$('#app');
@@ -360,7 +367,8 @@ let vistaNeg='global';
 let adminFiltroEq='global';
 let bellOpen=false;
 let editIndId=null, editIncId=null, editUsrCed=null;
-let hayActualizacion=false, pollTimer=null, clockTimer=null, lastSignature=null;
+let pollTimer=null, clockTimer=null, rtChannel=null, syncDebounce=null, lastSignature=null;
+let rtConnected=false;
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -444,6 +452,35 @@ function setValidacionLocalIncentivo(incId, ced, data){
   localStorage.setItem('incentivos_val_local', JSON.stringify(INCENTIVOS_VAL_LOCAL));
 }
 
+function getPendientesMisionesAdmin(){
+  const list = [];
+  (MISIONES || []).forEach(m => {
+    (m.pendientes_validacion || []).forEach(pv => {
+      list.push({
+        ...pv,
+        mision_id: m.id,
+        mision_titulo: m.titulo,
+        mision_puntos: m.puntos,
+        insignia_nombre: m.insignia_nombre,
+        insignia_icono: m.insignia_icono
+      });
+    });
+  });
+  return list;
+}
+
+function getPendientesIncentivosAdmin(){
+  return (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente');
+}
+
+function esMisionParaUsuario(m){
+  if(m.asignacion_tipo === 'algunos'){
+    const lista = (m.asignados_cedulas || []).map(String);
+    return lista.includes(String(S.ced));
+  }
+  return true;
+}
+
 async function loadExtras(){
   if(D && Array.isArray(D.incentivos)){
     D.incentivos = D.incentivos.map(enrichIncentivo);
@@ -485,22 +522,49 @@ async function loadExtras(){
   }catch(e){}
 }
 
-function buildSignature(d, h){
+function buildSignature(d, h, mis, vals){
   const posts = (d.postulaciones||[]).map(p=>`${p.id}:${p.estado}`).join('|');
-  const pend = (d.pendientes||[]).length;
+  const pend = (d.pendientes||[]).map(p=>`${p.id}`).join(',');
   const upd = h && h.actualizado ? h.actualizado : '';
   const rk = (d.ranking||[]).map(r=>`${r.nombre}:${r.puntos}`).join('|');
-  return `${upd}::${posts}::${pend}::${rk}`;
+  const mSig = (mis||[]).map(m=>`${m.id}:${(m.pendientes_validacion||[]).length}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
+  const vSig = (vals||[]).map(v=>`${v.incentivo_id}:${v.cedula}:${v.estado}`).join('|');
+  return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}`;
 }
 
-function checkChanges(prevD, newD){
-  if(!prevD) return;
+function detectarYNotificarCambios(prevState, nextState){
+  if(!prevState || !S) return;
+
   if(!S.a){
+    // 1) Nuevas misiones publicadas para el usuario
+    const prevMisIds = new Set((prevState.misiones || []).filter(esMisionParaUsuario).map(m => String(m.id)));
+    (nextState.misiones || []).filter(esMisionParaUsuario).forEach(m => {
+      if(!prevMisIds.has(String(m.id))){
+        notify(
+          '🚀 ¡Nueva misión publicada!',
+          `${m.titulo} (+${m.puntos} pts · ${m.insignia_icono} ${m.insignia_nombre})`,
+          'alert',
+          `<button class="gold" onclick="userTab='misiones';drawUser()">Ver misión</button>`
+        );
+      }else{
+        const oldM = (prevState.misiones || []).find(x => String(x.id) === String(m.id));
+        const fueAprobada = (!oldM || !oldM.completada) && !!m.completada;
+        if(fueAprobada){
+          notify(
+            '🏅 ¡Misión validada!',
+            `Ganaste +${m.puntos} pts y tu insignia ${m.insignia_icono} ${m.insignia_nombre}.`,
+            'success'
+          );
+        }
+      }
+    });
+
+    // 2) Cambios en postulaciones del usuario
     const oldMap = {};
-    (prevD.postulaciones||[]).forEach(p=>oldMap[p.id]=p.estado);
-    (newD.postulaciones||[]).forEach(p=>{
-      if(oldMap[p.id] && oldMap[p.id]==='pendiente' && p.estado!=='pendiente'){
-        if(p.estado==='aprobada'){
+    ((prevState.D && prevState.D.postulaciones) || []).forEach(p => oldMap[p.id] = p.estado);
+    ((nextState.D && nextState.D.postulaciones) || []).forEach(p => {
+      if(oldMap[p.id] && oldMap[p.id] === 'pendiente' && p.estado !== 'pendiente'){
+        if(p.estado === 'aprobada'){
           notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success');
         }else{
           notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info');
@@ -508,33 +572,219 @@ function checkChanges(prevD, newD){
       }
     });
   }else{
-    if((newD.pendientes||[]).length > (prevD.pendientes||[]).length){
-      notify('📩 Nueva postulación recibida', 'Un integrante envió una atención para revisión.', 'alert');
-    }
+    // Admin: 1) Nuevas postulaciones enviadas por usuarios
+    const prevPendIds = new Set(((prevState.D && prevState.D.pendientes) || []).map(p => String(p.id)));
+    ((nextState.D && nextState.D.pendientes) || []).forEach(p => {
+      if(!prevPendIds.has(String(p.id))){
+        notify(
+          '🌟 Nueva postulación enviada',
+          `${p.nombre} envió el caso ${p.caso || 'sin número'} para validar.`,
+          'alert',
+          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`
+        );
+      }
+    });
+
+    // 2) Quién marcó una misión/reto como completado
+    const prevMisPend = new Set();
+    (prevState.misiones || []).forEach(m => (m.pendientes_validacion || []).forEach(pv => prevMisPend.add(`${m.id}:${pv.cedula}`)));
+    (nextState.misiones || []).forEach(m => {
+      (m.pendientes_validacion || []).forEach(pv => {
+        if(!prevMisPend.has(`${m.id}:${pv.cedula}`)){
+          notify(
+            '🚀 Reto marcado como completado',
+            `${pv.nombre} marcó "${m.titulo}" como completado y pide validación.`,
+            'alert',
+            `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`
+          );
+        }
+      });
+    });
+
+    // 3) Nuevas solicitudes de validación de cierre/corte de incentivo
+    const prevValPend = new Set((prevState.vals || []).filter(v => v.estado === 'pendiente').map(v => `${v.incentivo_id}:${v.cedula}`));
+    (nextState.vals || []).filter(v => v.estado === 'pendiente').forEach(v => {
+      if(!prevValPend.has(`${v.incentivo_id}:${v.cedula}`)){
+        notify(
+          '🎯 Corte de incentivo por validar',
+          `${v.nombre} solicitó validar el cierre de "${v.incentivo_nombre || 'Incentivo'}".`,
+          'alert',
+          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`
+        );
+      }
+    });
   }
+}
+
+async function syncState({ silent=false } = {}){
+  if(!S) return;
+  const prevState = D ? {
+    D: JSON.parse(JSON.stringify(D)),
+    misiones: JSON.parse(JSON.stringify(MISIONES)),
+    vals: JSON.parse(JSON.stringify(VALIDACIONES_INC))
+  } : null;
+
+  const nextD = S.a
+    ? await rpc('admin_panel', {p_admin: S.clave})
+    : await rpc('mi_panel', {p_ced: S.ced, p_clave: S.clave});
+
+  let nextH = null;
+  if(!S.a){
+    try{ nextH = await rpc('mi_historial', {p_ced: S.ced, p_clave: S.clave}); }catch(e){}
+  }
+
+  let nextF = F, nextG = G;
+  if(S.a && !silent){
+    try{ nextF = await rpc('admin_fechas', {p_admin: S.clave}); }catch(e){}
+    try{ nextG = await rpc('admin_detalle', {p_admin: S.clave}); }catch(e){}
+  }
+
+  D = nextD;
+  if(nextH !== null) H = nextH;
+  if(nextF !== null) F = nextF;
+  if(nextG !== null) G = nextG;
+
+  await loadExtras();
+
+  const nextState = { D, misiones: MISIONES, vals: VALIDACIONES_INC };
+  const sig = buildSignature(D, H, MISIONES, VALIDACIONES_INC);
+
+  if(prevState && sig !== lastSignature){
+    detectarYNotificarCambios(prevState, nextState);
+    if(S.a){
+      try{
+        F = await rpc('admin_fechas', {p_admin: S.clave});
+        G = await rpc('admin_detalle', {p_admin: S.clave});
+      }catch(e){}
+    }
+    draw();
+  }else if(!prevState){
+    draw();
+  }
+
+  lastSignature = sig;
+}
+
+function scheduleRealtimeSync(reasonText=''){
+  if(syncDebounce) clearTimeout(syncDebounce);
+  syncDebounce = setTimeout(async ()=>{
+    try{
+      await syncState({ silent: false });
+    }catch(e){}
+  }, 120);
+}
+
+// Difusión instantánea de eventos entre pestañas/clientes conectados + Postgres Realtime
+function broadcastEvent(eventName, payload){
+  try{
+    if(rtChannel){
+      rtChannel.send({
+        type: 'broadcast',
+        event: eventName,
+        payload: { ...payload, at: Date.now() }
+      });
+    }
+  }catch(e){}
+}
+
+function setupRealtime(){
+  cleanupRealtime();
+  rtChannel = sb.channel('operacion-realtime-v1', {
+    config: { broadcast: { ack: false } }
+  });
+
+  // Escuchar eventos broadcast instantáneos (misiones nuevas, postulaciones, retos completados)
+  rtChannel.on('broadcast', { event: 'mision_publicada' }, ({ payload }) => {
+    if(!S || S.a) return;
+    if(payload && payload.asignacion_tipo === 'algunos'){
+      const ids = (payload.asignados_cedulas || []).map(String);
+      if(!ids.includes(String(S.ced))) return;
+    }
+    notify(
+      '🚀 ¡Nueva misión publicada en tiempo real!',
+      `${payload?.titulo || 'Nueva misión'} (+${payload?.puntos || 0} pts · ${payload?.insignia_icono || '🏅'} ${payload?.insignia_nombre || ''})`,
+      'alert',
+      `<button class="gold" onclick="userTab='misiones';drawUser()">Ir a Misiones</button>`
+    );
+    scheduleRealtimeSync('broadcast_mision');
+  });
+
+  rtChannel.on('broadcast', { event: 'postulacion_enviada' }, ({ payload }) => {
+    if(!S || !S.a) return;
+    notify(
+      '🌟 Nueva postulación enviada',
+      `${payload?.nombre || 'Un usuario'} envió el caso ${payload?.caso || 'sin número'}.`,
+      'alert',
+      `<button class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`
+    );
+    scheduleRealtimeSync('broadcast_post');
+  });
+
+  rtChannel.on('broadcast', { event: 'reto_completado' }, ({ payload }) => {
+    if(!S || !S.a) return;
+    notify(
+      '🚀 Reto completado por usuario',
+      `${payload?.nombre || 'Un usuario'} marcó "${payload?.mision_titulo || 'una misión'}" como completada.`,
+      'alert',
+      `<button class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`
+    );
+    scheduleRealtimeSync('broadcast_reto');
+  });
+
+  rtChannel.on('broadcast', { event: 'corte_incentivo_enviado' }, ({ payload }) => {
+    if(!S || !S.a) return;
+    notify(
+      '🎯 Cierre de incentivo enviado',
+      `${payload?.nombre || 'Un usuario'} solicitó validar "${payload?.incentivo || 'un incentivo'}".`,
+      'alert',
+      `<button class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`
+    );
+    scheduleRealtimeSync('broadcast_inc');
+  });
+
+  rtChannel.on('broadcast', { event: 'validacion_resuelta' }, ({ payload }) => {
+    if(!S || S.a) return;
+    if(payload?.cedula && String(payload.cedula) !== String(S.ced)) return;
+    notify(
+      payload?.aprobada ? '✅ ¡Validación aprobada!' : '💬 Actualización de validación',
+      payload?.mensaje || 'El administrador actualizó el estado de tu solicitud.',
+      payload?.aprobada ? 'success' : 'info'
+    );
+    scheduleRealtimeSync('broadcast_val');
+  });
+
+  // Escuchar cambios directos en tablas de Postgres vía Supabase Realtime
+  const tablas = ['misiones', 'postulaciones', 'misiones_usuarios', 'validaciones_incentivos', 'resultados_diarios', 'negativos'];
+  tablas.forEach(tabla => {
+    rtChannel.on('postgres_changes', { event: '*', schema: 'public', table: tabla }, () => {
+      scheduleRealtimeSync('pg_' + tabla);
+    });
+  });
+
+  rtChannel.subscribe((status) => {
+    rtConnected = status === 'SUBSCRIBED';
+    const pill = document.getElementById('rt-status-pill');
+    if(pill){
+      pill.innerHTML = `<span class="live-dot"></span>${rtConnected ? 'Tiempo real activo' : 'Conectando...'}`;
+    }
+  });
+}
+
+function cleanupRealtime(){
+  if(syncDebounce){ clearTimeout(syncDebounce); syncDebounce = null; }
+  if(rtChannel){
+    sb.removeChannel(rtChannel);
+    rtChannel = null;
+  }
+  rtConnected = false;
 }
 
 function startPolling(){
   if(pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async ()=>{
     if(!S) return;
-    try{
-      const nextD = S.a ? await rpc('admin_panel',{p_admin:S.clave}) : await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
-      let nextH = null;
-      if(!S.a){ try{ nextH = await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave}); }catch(e){} }
-      const sig = buildSignature(nextD, nextH);
-      if(lastSignature && sig !== lastSignature && !hayActualizacion){
-        hayActualizacion = true;
-        notify(
-          '🔄 Actualización disponible',
-          'Hay nuevos datos o respuestas en el sistema. Actualiza la página para verlos.',
-          'alert',
-          `<button class="gold" onclick="hayActualizacion=false;load()">Actualizar ahora</button>`
-        );
-        draw();
-      }
-    }catch(e){}
-  }, 30000);
+    try{ await syncState({ silent: true }); }catch(e){}
+  }, 5000);
 }
 
 function startClockTick(){
@@ -547,9 +797,8 @@ function startClockTick(){
 }
 
 async function load(){
-  const prevD = D;
   try{
-    D=S.a?await rpc('admin_panel',{p_admin:S.clave}):await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
+    D = S.a ? await rpc('admin_panel',{p_admin:S.clave}) : await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
     if(S.a){
       try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
       try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}
@@ -558,18 +807,18 @@ async function load(){
       try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}
     }
     await loadExtras();
-    checkChanges(prevD, D);
-    lastSignature = buildSignature(D, H);
-    hayActualizacion = false;
+    lastSignature = buildSignature(D, H, MISIONES, VALIDACIONES_INC);
     sessionStorage.setItem('s',JSON.stringify(S));
     draw();
+    setupRealtime();
     startPolling();
     startClockTick();
   }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
 }
 function login(err=''){
-  if(pollTimer) clearInterval(pollTimer);
-  if(clockTimer) clearInterval(clockTimer);
+  if(pollTimer)clearInterval(pollTimer);
+  if(clockTimer)clearInterval(clockTimer);
+  cleanupRealtime();
   popHide();app.className='';app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
   <p class="mute">Ingresa con tu cédula y tu clave.</p>
   <label>Cédula<input id="c" inputmode="numeric" autocomplete="username"></label>
@@ -579,8 +828,12 @@ function login(err=''){
   $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
-function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);S=null;D=null;lastSignature=null;bellOpen=false;sessionStorage.removeItem('s');login()}
+function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);cleanupRealtime();S=null;D=null;lastSignature=null;bellOpen=false;sessionStorage.removeItem('s');login()}
 function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
+
+function rtBadgeHtml(){
+  return `<span id="rt-status-pill" class="live-pill"><span class="live-dot"></span>${rtConnected ? 'Tiempo real activo' : 'En vivo'}</span>`;
+}
 
 // ---------- Vista de la persona ----------
 function ini(n){return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
@@ -593,15 +846,7 @@ function updTxt(){
   const f=H.actualizado?new Date(H.actualizado).toLocaleString('es',{day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}):'',
   h=H.hasta?new Date(H.hasta+'T12:00:00').toLocaleDateString('es',{day:'numeric',month:'long'}):'';
   if(!f&&!h)return '<div class="upd"><span>🕒 Aún no hay información cargada.</span></div>';
-  return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="load()">Recargar</button></div>`;
-}
-
-function esMisionParaUsuario(m){
-  if(m.asignacion_tipo === 'algunos'){
-    const lista = (m.asignados_cedulas || []).map(String);
-    return lista.includes(String(S.ced));
-  }
-  return true;
+  return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="syncState()">Recargar ahora</button></div>`;
 }
 
 function getMisionesVisiblesUsuario(){
@@ -663,7 +908,7 @@ function drawUser(){
             <span class="mute" style="font-size:.78rem">· Compartir</span>
           </button>
         `).join('')}</div>`
-      : '<p class="mute" style="margin:8px 0 0">Aún no has ganado insignias de misiones validas este mes.</p>'
+      : '<p class="mute" style="margin:8px 0 0">Aún no has ganado insignias de misiones validadas este mes.</p>'
     }
   </div>`;
 
@@ -681,7 +926,7 @@ function drawUser(){
   }else if(userTab === 'misiones'){
     cuerpoUser = bloqueInsignias + `<div class="card">
       <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
-      <p class="mute">Las misiones <b>obligatorias</b> deben completarse y no pueden omitirse. Cuando la misión esté completada y marcada como validada, puedes compartir tu imagen de logro e insignia.</p>
+      <p class="mute">Recibes alertas al instante cuando se publica una nueva misión. Las misiones <b>obligatorias</b> no pueden omitirse.</p>
     </div>` + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
@@ -727,14 +972,13 @@ function drawUser(){
   }
 
   app.innerHTML=`
-  ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay una actualización disponible en el sistema! Recarga para ver los últimos cambios.</span><button onclick="load()">Actualizar página</button></div>` : ''}
   <div class="top">
     <div>
-      <h1>¡Hola, ${esc(D.nombre.split(' ')[0])}! 👋 ${equipoLabel(miEq)}</h1>
+      <h1>¡Hola, ${esc(D.nombre.split(' ')[0])}! 👋 ${equipoLabel(miEq)} ${rtBadgeHtml()}</h1>
       <span class="mute">Así vas en ${esc(D.mes)}</span>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Las notificaciones con sonido están funcionando correctamente.','info')">🔔 Probar sonido</button>
+      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Las alertas en tiempo real están activas.','info')">🔔 Probar sonido</button>
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
@@ -782,7 +1026,6 @@ function seccionRetosUsuario(){
           ${m.obligatoria
             ? '<span class="tag oblig" style="margin-left:4px">🔒 Misión obligatoria</span>'
             : '<span class="tag" style="margin-left:4px">Opcional</span>'}
-          ${aceptada && !completada && !pendienteVal && !m.obligatoria ? '<span class="tag aceptada" style="margin-left:4px">Aceptada</span>' : ''}
         </div>
         <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
@@ -804,7 +1047,7 @@ function seccionRetosUsuario(){
                 ? `<div>
                      <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
                      <div class="row" style="gap:8px">
-                       <button onclick="marcarMisionCompletada(${m.id})">✔ Marcar como completada</button>
+                       <button onclick="marcarMisionCompletada(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">✔ Marcar como completada</button>
                        ${!m.obligatoria ? `<button class="sec" onclick="omitirMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">Omitir misión</button>` : ''}
                      </div>
                    </div>`
@@ -853,10 +1096,17 @@ async function omitirMision(misionId, titulo){
   drawUser();
 }
 
-async function marcarMisionCompletada(misionId){
+async function marcarMisionCompletada(misionId, tituloMision='Misión'){
   const elNota = $('#ev-nota-' + misionId);
   const nota = elNota ? elNota.value.trim() : '';
   setEstadoLocalMision(misionId, 'pendiente');
+  broadcastEvent('reto_completado', {
+    cedula: S.ced,
+    nombre: D.nombre,
+    mision_id: misionId,
+    mision_titulo: tituloMision,
+    nota
+  });
   try{
     await rpc('responder_mision', {
       p_ced: S.ced,
@@ -875,8 +1125,8 @@ async function marcarMisionCompletada(misionId){
       });
     }catch(err){}
   }
-  notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos e insignia.', 'success');
-  await load();
+  notify('🚀 Misión enviada a validación', 'El administrador recibió la alerta en tiempo real en su campana.', 'success');
+  await syncState({ silent: false });
 }
 
 async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nombreInsignia='Insignia de Misión', subtituloExtra=''){
@@ -1039,7 +1289,7 @@ async function reportarNegativo(esAdmin){
       p_reportado_por: null
     });
     notify('⚠️ Registro anónimo guardado', `Se añadió 1 punto negativo informativo para ${per}.`, 'warn');
-    await load();
+    await syncState({ silent: false });
   }catch(e){ alert(e.message); }
 }
 
@@ -1098,8 +1348,9 @@ async function postular(){
   try{
     await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});
     msg='Postulación enviada';
-    notify('📨 Postulación enviada', `Tu caso ${c} fue enviado a revisión. Te avisaremos cuando tenga respuesta.`, 'success');
-    await load();
+    broadcastEvent('postulacion_enviada', { cedula: S.ced, nombre: D.nombre, caso: c });
+    notify('📨 Postulación enviada', `Tu caso ${c} fue enviado y notificado al admin al instante.`, 'success');
+    await syncState({ silent: false });
   }catch(e){alert(e.message)}
 }
 
@@ -1213,6 +1464,12 @@ async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
     nota_usuario: nota,
     solicitada_en: new Date().toISOString()
   });
+  broadcastEvent('corte_incentivo_enviado', {
+    cedula: S.ced,
+    nombre: D.nombre,
+    incentivo: nombreInc,
+    corte: corteTxt
+  });
   try{
     await rpc('solicitar_validacion_incentivo', {
       p_ced: S.ced,
@@ -1222,7 +1479,7 @@ async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
     });
   }catch(e){}
   notify('📋 Validación solicitada al líder', `Enviaste tu cierre/corte para "${nombreInc}" (${corteTxt}).`, 'success');
-  await load();
+  await syncState({ silent: false });
 }
 
 async function validarIncentivoLider(incId, ced, aprobar){
@@ -1232,6 +1489,11 @@ async function validarIncentivoLider(incId, ced, aprobar){
     estado: aprobar ? 'aprobada' : 'rechazada',
     nota_lider: notaLider,
     resuelta_en: new Date().toISOString()
+  });
+  broadcastEvent('validacion_resuelta', {
+    cedula: ced,
+    aprobada: aprobar,
+    mensaje: aprobar ? 'Tu cierre/corte de incentivo fue validado por el líder.' : (notaLider || 'El líder registró una observación en tu cierre/corte.')
   });
   try{
     await rpc('admin_validar_incentivo', {
@@ -1243,7 +1505,7 @@ async function validarIncentivoLider(incId, ced, aprobar){
     });
   }catch(e){}
   notify(aprobar ? '✔ Cierre/corte validado' : '↩ Validación rechazada', aprobar ? 'El usuario ya puede compartir su imagen de logro.' : 'Se registró la observación del líder.', aprobar ? 'success' : 'warn');
-  await load();
+  await syncState({ silent: false });
 }
 
 async function guardarPuntosIncreible(){
@@ -1299,7 +1561,7 @@ async function cambiarEquipoPersona(ced, nombre){
 }
 
 function adminIncentivosView(){
-  const pendientesVal = (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente');
+  const pendientesVal = getPendientesIncentivosAdmin();
   const aprobadasVal = (VALIDACIONES_INC || []).filter(v => v.estado === 'aprobada');
   const opcionesInd = (D.indicadores || []).map(i => i.nombre);
 
@@ -1394,27 +1656,6 @@ function adminIncentivosView(){
 }
 
 // ---------- Campana de Notificaciones del Admin ----------
-function getPendientesMisionesAdmin(){
-  const list = [];
-  (MISIONES || []).forEach(m => {
-    (m.pendientes_validacion || []).forEach(pv => {
-      list.push({
-        ...pv,
-        mision_id: m.id,
-        mision_titulo: m.titulo,
-        mision_puntos: m.puntos,
-        insignia_nombre: m.insignia_nombre,
-        insignia_icono: m.insignia_icono
-      });
-    });
-  });
-  return list;
-}
-
-function getPendientesIncentivosAdmin(){
-  return (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente');
-}
-
 function toggleBell(){
   bellOpen = !bellOpen;
   drawAdmin();
@@ -1520,7 +1761,7 @@ function drawAdmin(){
       </div>
     </div>
     ${D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
-    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
+    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true,'${esc(p.cedula||'')}','${esc(p.caso||'')}')">Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button class="sec" onclick="evaluar(${p.id},false,'${esc(p.cedula||'')}','${esc(p.caso||'')}')">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
@@ -1567,12 +1808,11 @@ function drawAdmin(){
   inc:()=>adminIncentivosView()}[tab]();
 
   app.innerHTML=`
-  ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay nuevos cambios en la operación!</span><button onclick="load()">Actualizar página</button></div>` : ''}
   <div class="top">
-    <h1>Administración</h1>
+    <h1>Administración ${rtBadgeHtml()}</h1>
     <div style="display:flex;gap:6px;align-items:center">
       ${campanaAdminHtml()}
-      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas sonoras habilitadas.','info')">🔊 Probar sonido</button>
+      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas en tiempo real habilitadas.','info')">🔊 Probar sonido</button>
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
@@ -1750,7 +1990,17 @@ async function crearMision(){
       p_fecha_limite: limite
     });
   }
-  notify('🚀 Misión e insignia publicadas', `"${titulo}" otorga la insignia ${insigniaIcono} ${insigniaNombre}.`, 'success');
+
+  broadcastEvent('mision_publicada', {
+    titulo,
+    puntos,
+    obligatoria,
+    asignacion_tipo: asignacionTipo,
+    asignados_cedulas: asignadosCedulas,
+    insignia_nombre: insigniaNombre,
+    insignia_icono: insigniaIcono
+  });
+  notify('🚀 Misión publicada en tiempo real', `Se alertó a los usuarios sobre "${titulo}".`, 'success');
 }
 
 async function aprobarMision(misionId){
@@ -1761,8 +2011,13 @@ async function aprobarMision(misionId){
 
 async function aprobarMisionDirecto(misionId, ced, aprobar){
   await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced, p_aprobar:aprobar});
+  broadcastEvent('validacion_resuelta', {
+    cedula: ced,
+    aprobada: aprobar,
+    mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud de misión fue devuelta para revisión.'
+  });
   if(aprobar){
-    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya puede compartir su imagen de logro con su insignia.', 'success');
+    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya recibió la alerta en tiempo real.', 'success');
   }else{
     notify('↩ Solicitud rechazada', 'Se devolvió la solicitud de validación.', 'warn');
   }
@@ -2006,9 +2261,21 @@ function popClose(){popOpen=false;const o=document.getElementById('ov'),d=docume
 function popPost(){popClose();userTab='resultados';drawUser();const h=document.getElementById('postular');if(h)h.scrollIntoView({behavior:'smooth'});setTimeout(()=>{const n=document.getElementById('nc');if(n)n.focus()},500)}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()});
 
-async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
+async function g(fn,args){
+  try{
+    await rpc(fn,{p_admin:S.clave,...args});
+    await syncState({ silent: false });
+  }catch(e){alert(e.message)}
+}
 const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
-const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:PTS_INCREIBLE,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
+async function evaluar(id,ok,ced='',caso=''){
+  await g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:PTS_INCREIBLE,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
+  broadcastEvent('validacion_resuelta', {
+    cedula: ced,
+    aprobada: ok,
+    mensaje: ok ? `¡Tu caso ${caso} fue aprobado (+${PTS_INCREIBLE} pts)!` : `Recibiste feedback en el caso ${caso}.`
+  });
+}
 async function lote(){
   const dup=F&&F.fechas.find(x=>x.fecha===$('#fe').value);
   if(dup&&!confirm(fdl(dup.fecha)+' ya tiene '+dup.registros+' registros cargados. ¿Quieres reemplazarlos con estos?'))return;
@@ -2020,8 +2287,22 @@ async function lote(){
       promotores:a[3]!==undefined && a[3]!=='' ? +a[3] : null,
       detractores:a[4]!==undefined && a[4]!=='' ? +a[4] : null
     }));
-  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await load();tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
+  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await syncState({silent:false});tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
 }
+
+// Exponer funciones al ámbito global para handlers inline en HTML
+Object.assign(window, {
+  out, drawUser, drawAdmin, syncState, playTone, notify,
+  aceptarMision, omitirMision, marcarMisionCompletada, copiarImagenLogro,
+  reportarNegativo, postular,
+  editarInd, limpiarInd, guardarInd, toggleTipoMetaForm,
+  editarInc, limpiarInc, guardarInc, solicitarValidacionIncentivo, validarIncentivoLider,
+  guardarPuntosIncreible, editarPersona, cancelarEditarPersona, guardarPersona, cambiarEquipoPersona,
+  toggleBell, irATabValidacion, toggleSelectorAlgunos, crearMision, aprobarMision, aprobarMisionDirecto,
+  agregarOpcionConducta, borrarOpcionConducta, borrarFecha, avisoFecha,
+  popTz, popOpenF, popClose, popPost, g, del, evaluar, lote
+});
+
 S?load():login();
 </script>
 </body>
