@@ -912,9 +912,18 @@ function startPolling(){
 function startClockTick(){
   if(clockTimer) clearInterval(clockTimer);
   clockTimer = setInterval(()=>{
+    let redrawNeeded = false;
     document.querySelectorAll('[data-deadline]').forEach(el=>{
-      el.textContent = '⏳ ' + tiempoRestante(el.getAttribute('data-deadline'));
+      const dl = el.getAttribute('data-deadline');
+      if(dl && new Date(dl) < new Date()){
+        redrawNeeded = true;
+      }else{
+        el.textContent = '⏳ ' + tiempoRestante(dl);
+      }
     });
+    if(redrawNeeded && S && !S.a){
+      draw();
+    }
   }, 30000);
 }
 
@@ -1032,7 +1041,10 @@ function drawUser(){
   const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
   const cantDias = (H && H.dias && H.dias.length) ? H.dias.length : 0;
   const misionesVisibles = getMisionesVisiblesUsuario();
-  const obligPendientes = misionesVisibles.filter(m => m.obligatoria && !m.completada && m._est !== 'rechazada' && m._est !== 'pendiente').length;
+  const obligPendientes = misionesVisibles.filter(m => {
+    const vencida = !!(m.fecha_limite && new Date(m.fecha_limite) < new Date());
+    return m.obligatoria && !m.completada && !vencida && m._est !== 'rechazada' && m._est !== 'pendiente';
+  }).length;
   const insigniasGanadas = getInsigniasGanadasUsuario();
 
   const navUser = `<div class="tabs">
@@ -1147,7 +1159,7 @@ function drawUser(){
 function tiempoRestante(fechaLimite){
   if(!fechaLimite) return 'Sin límite de tiempo';
   const diff = new Date(fechaLimite) - new Date();
-  if(diff <= 0) return 'Tiempo finalizado';
+  if(diff <= 0) return 'Tiempo agotado';
   const hrs = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   if(hrs >= 24) return `Quedan ${Math.floor(hrs/24)}d ${hrs%24}h ${mins}m`;
@@ -1159,24 +1171,26 @@ function seccionRetosUsuario(){
   if(!lista.length) return '<div class="card"><p class="mute" style="margin:0">No hay misiones activas o pendientes por mostrar en este momento.</p></div>';
 
   return lista.map(m => {
-    const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
     const completada = m._est === 'aprobada' || !!m.completada;
     const rechazada = !completada && m._est === 'rechazada';
     const pendienteVal = !completada && !rechazada && m._est === 'pendiente';
-    const aceptada = !completada && !rechazada && !pendienteVal && (m._est === 'aceptada' || m.obligatoria);
-    const cardCls = completada ? 'done' : rechazada ? 'oblig-card' : m.obligatoria ? 'oblig-card' : aceptada ? 'accepted' : '';
+    const vencidaSinCompletar = !completada && !rechazada && !pendienteVal && !!(m.fecha_limite && new Date(m.fecha_limite) < new Date());
+    const aceptada = !completada && !rechazada && !pendienteVal && !vencidaSinCompletar && (m._est === 'aceptada' || m.obligatoria);
+    const cardCls = completada ? 'done' : (rechazada || vencidaSinCompletar) ? 'oblig-card' : m.obligatoria ? 'oblig-card' : aceptada ? 'accepted' : '';
 
     return `<div class="card reto-card ${cardCls}">
       <div class="row">
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
-          <span class="tag ${completada?'aprobada':rechazada?'rechazada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">${rechazada ? 'Rechazada' : '+' + m.puntos + ' pts'}</span>
+          <span class="tag ${completada?'aprobada':(rechazada||vencidaSinCompletar)?'rechazada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">
+            ${rechazada ? 'Rechazada' : vencidaSinCompletar ? 'Fuera de tiempo' : '+' + m.puntos + ' pts'}
+          </span>
           <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria
             ? '<span class="tag oblig" style="margin-left:4px">🔒 Misión obligatoria</span>'
             : '<span class="tag" style="margin-left:4px">Opcional</span>'}
         </div>
-        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${rechazada ? 'Misión cerrada' : esc(tiempoRestante(m.fecha_limite))}</span>
+        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${rechazada ? 'Misión cerrada' : vencidaSinCompletar ? 'Tiempo agotado' : esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
@@ -1193,23 +1207,26 @@ function seccionRetosUsuario(){
                  <span class="tag neg">❌ Rechazada</span>
                  <span class="mute">Misión cerrada por el administrador.</span>
                </div>`
+          : vencidaSinCompletar
+            ? `<div class="row">
+                 <span class="tag neg">⏰ No completada por fuera de tiempo</span>
+                 <span class="mute">Misión cerrada porque se acabó el tiempo antes de completarla.</span>
+               </div>`
           : pendienteVal
             ? `<span class="tag pendiente">⏳ Completada · Esperando validación del líder</span>`
-            : exp
-              ? `<span class="mute">El tiempo para esta misión finalizó.</span>`
-              : aceptada
-                ? `<div>
-                     <label for="ev-nota-${m.id}" style="font-size:.85rem">Evidencia o nota (opcional)</label>
-                     <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
-                     <div class="row" style="gap:8px">
-                       <button type="button" onclick='marcarMisionCompletada(${Number(m.id)}, ${jsArg(m.titulo)})'>✔ Marcar como completada</button>
-                       ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir misión</button>` : ''}
-                     </div>
-                   </div>`
-                : `<div class="row" style="gap:8px">
-                     <button type="button" onclick='aceptarMision(${Number(m.id)}, ${jsArg(m.titulo)})'>✋ Aceptar misión o reto</button>
-                     ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir</button>` : ''}
-                   </div>`
+            : aceptada
+              ? `<div>
+                   <label for="ev-nota-${m.id}" style="font-size:.85rem">Evidencia o nota (opcional)</label>
+                   <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
+                   <div class="row" style="gap:8px">
+                     <button type="button" onclick='marcarMisionCompletada(${Number(m.id)}, ${jsArg(m.titulo)})'>✔ Marcar como completada</button>
+                     ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir misión</button>` : ''}
+                   </div>
+                 </div>`
+              : `<div class="row" style="gap:8px">
+                   <button type="button" onclick='aceptarMision(${Number(m.id)}, ${jsArg(m.titulo)})'>✋ Aceptar misión o reto</button>
+                   ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir</button>` : ''}
+                 </div>`
         }
       </div>
     </div>`;
@@ -1244,6 +1261,13 @@ async function omitirMision(misionId, titulo){
 }
 
 async function marcarMisionCompletada(misionId, tituloMision='Misión'){
+  const mObj = MISIONES.find(x => Number(x.id) === Number(misionId));
+  if(mObj && mObj.fecha_limite && new Date(mObj.fecha_limite) < new Date()){
+    alert('El tiempo de esta misión ya se agotó y quedó cerrada como no completada por fuera de tiempo.');
+    drawUser();
+    return;
+  }
+
   const elNota = $('#ev-nota-' + misionId);
   const nota = elNota ? elNota.value.trim() : '';
   const res = resolverDatosUsuario(S.ced, D && D.nombre);
