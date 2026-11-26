@@ -41,6 +41,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .tag.aceptada{background:rgba(14,143,131,.16);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
 .tag.oblig{background:rgba(214,84,63,.16);color:var(--coral);border:1px solid rgba(214,84,63,.45)}
 .tag.badge-pill{background:linear-gradient(135deg,rgba(244,196,78,.28),rgba(224,165,38,.22));color:var(--ink);border:1px solid var(--gold)}
+.tag.ind-goal{background:rgba(124,77,255,.14);color:var(--purple);border:1px solid rgba(124,77,255,.35)}
 .tag.feedback,.tag.neg{background:var(--coral);color:#fff}
 .tag.eq-trad{background:#1e6091;color:#fff}
 .tag.eq-soc{background:var(--purple);color:#fff}
@@ -201,6 +202,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .inc .how{background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:.9rem}
 .inc .how ul{margin:4px 0 0;padding-left:18px}
 .inc .how li{margin:2px 0}
+.lider-box{background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.32);border-radius:10px;padding:11px 12px;margin-top:10px;font-size:.9rem}
 
 .ib{display:grid;grid-template-columns:1fr;gap:4px;padding:12px 16px}
 .ib .tp{display:flex;justify-content:space-between;gap:10px}
@@ -336,10 +338,12 @@ function notify(title, body, type='info', actionHtml=''){
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
-let MISIONES=[], NEGATIVOS=[];
+let MISIONES=[], NEGATIVOS=[], VALIDACIONES_INC=[];
 let OPCIONES_CONDUCTA = JSON.parse(localStorage.getItem('opciones_conducta_local') || '["Mal lenguaje","Actitud grosera","Comportamiento errado"]');
 let MISIONES_LOCAL = JSON.parse(localStorage.getItem('misiones_estado_local') || '{}');
 let MISIONES_META_LOCAL = JSON.parse(localStorage.getItem('misiones_meta_local') || '{}');
+let INCENTIVOS_META_LOCAL = JSON.parse(localStorage.getItem('incentivos_meta_local') || '{}');
+let INCENTIVOS_VAL_LOCAL = JSON.parse(localStorage.getItem('incentivos_val_local') || '{}');
 let selP='', tab='post', userTab='resultados', msg='';
 let vistaRk='equipo';
 let vistaNeg='global';
@@ -389,7 +393,50 @@ function enrichMisiones(rawList){
   });
 }
 
+function saveMetaLocalIncentivo(id, nombre, tipoMeta, indicadorNombre, metaIndicador, corteIndicador){
+  const key = id ? ('id:' + String(id)) : ('nom:' + norm(nombre));
+  INCENTIVOS_META_LOCAL[key] = {
+    tipo_meta: tipoMeta || 'puntos',
+    indicador_nombre: tipoMeta === 'indicador' ? (indicadorNombre || '') : '',
+    meta_indicador: tipoMeta === 'indicador' ? (metaIndicador || '') : '',
+    corte_indicador: tipoMeta === 'indicador' ? (corteIndicador || 'Cierre de mes') : ''
+  };
+  localStorage.setItem('incentivos_meta_local', JSON.stringify(INCENTIVOS_META_LOCAL));
+}
+
+function enrichIncentivo(inc){
+  const loc = INCENTIVOS_META_LOCAL['id:' + String(inc.id)] || INCENTIVOS_META_LOCAL['nom:' + norm(inc.nombre)] || {};
+  const tipo_meta = inc.tipo_meta || loc.tipo_meta || 'puntos';
+  const indicador_nombre = (inc.indicador_nombre && inc.indicador_nombre.trim()) || loc.indicador_nombre || '';
+  const meta_indicador = (inc.meta_indicador && String(inc.meta_indicador).trim()) || loc.meta_indicador || '';
+  const corte_indicador = (inc.corte_indicador && inc.corte_indicador.trim()) || loc.corte_indicador || 'Cierre de mes';
+  return { ...inc, tipo_meta, indicador_nombre, meta_indicador, corte_indicador };
+}
+
+function getValidacionIncentivoUsuario(incId, ced){
+  const c = String(ced || (S && S.ced) || '');
+  const rem = (VALIDACIONES_INC || []).find(v => String(v.incentivo_id) === String(incId) && String(v.cedula) === c);
+  if(rem) return rem;
+  const loc = INCENTIVOS_VAL_LOCAL[c] && INCENTIVOS_VAL_LOCAL[c][String(incId)];
+  return loc || null;
+}
+
+function setValidacionLocalIncentivo(incId, ced, data){
+  const c = String(ced || (S && S.ced) || '');
+  if(!INCENTIVOS_VAL_LOCAL[c]) INCENTIVOS_VAL_LOCAL[c] = {};
+  INCENTIVOS_VAL_LOCAL[c][String(incId)] = {
+    incentivo_id: incId,
+    cedula: c,
+    ...(INCENTIVOS_VAL_LOCAL[c][String(incId)] || {}),
+    ...data
+  };
+  localStorage.setItem('incentivos_val_local', JSON.stringify(INCENTIVOS_VAL_LOCAL));
+}
+
 async function loadExtras(){
+  if(D && Array.isArray(D.incentivos)){
+    D.incentivos = D.incentivos.map(enrichIncentivo);
+  }
   try{
     const rawM = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced}) || [];
     MISIONES = enrichMisiones(rawM);
@@ -397,6 +444,10 @@ async function loadExtras(){
   try{
     NEGATIVOS = await rpc('listar_negativos', {}) || [];
   }catch(e){ NEGATIVOS = []; }
+  try{
+    const vals = await rpc('listar_validaciones_incentivos', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced});
+    if(Array.isArray(vals)) VALIDACIONES_INC = vals;
+  }catch(e){}
   try{
     const ops = await rpc('listar_opciones_conducta', {});
     if(Array.isArray(ops) && ops.length){
@@ -817,7 +868,7 @@ async function marcarMisionCompletada(misionId){
   await load();
 }
 
-async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nombreInsignia='Insignia de Misión'){
+async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nombreInsignia='Insignia de Misión', subtituloExtra=''){
   try{
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 480;
@@ -835,7 +886,7 @@ async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nom
 
     ctx.fillStyle = '#e0a526';
     ctx.font = 'bold 26px system-ui, sans-serif';
-    ctx.fillText('🏆 MISIÓN VALIDADA · LOGRO DESBLOQUEADO', 60, 82);
+    ctx.fillText('🏆 LOGRO VALIDADO · OPERACIÓN', 60, 82);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 44px system-ui, sans-serif';
@@ -843,7 +894,7 @@ async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nom
 
     ctx.fillStyle = '#b9c7d6';
     ctx.font = '24px system-ui, sans-serif';
-    ctx.fillText('Misión completada y validada:', 60, 206);
+    ctx.fillText(subtituloExtra || 'Logro completado y validado:', 60, 206);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 32px system-ui, sans-serif';
@@ -855,15 +906,15 @@ async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nom
     ctx.fill();
     ctx.fillStyle = '#ffd56b';
     ctx.font = 'bold 24px system-ui, sans-serif';
-    ctx.fillText(`${iconoInsignia} Insignia ganada: ${nombreInsignia}`, 78, 306);
+    ctx.fillText(`${iconoInsignia} ${nombreInsignia}`, 78, 306);
 
     ctx.fillStyle = '#e0a526';
     ctx.beginPath();
     ctx.roundRect(60, 342, 240, 62, 31);
     ctx.fill();
     ctx.fillStyle = '#1a1a1a';
-    ctx.font = 'bold 30px system-ui, sans-serif';
-    ctx.fillText(`+${puntos} PUNTOS`, 88, 383);
+    ctx.font = 'bold 28px system-ui, sans-serif';
+    ctx.fillText(puntos > 0 ? `+${puntos} PUNTOS` : 'VALIDADO', 84, 383);
 
     ctx.fillStyle = '#e3f6f3';
     ctx.font = '22px system-ui, sans-serif';
@@ -999,7 +1050,7 @@ function podio(rk){
   return `<div class="podio">${t.map((x,k)=>`<div class="c p${pos[k]} ${x.yo?'yo':''}"><div class="nm">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bl">${['🥈','🥇','🥉'][k]}<small>${x.puntos} pts</small></div></div>`).join('')}</div>`;
 }
 
-// ---------- Detalle de Indicador en Día a Día (Sin mensaje vacío de promotores/detractores) ----------
+// ---------- Detalle de Indicador en Día a Día ----------
 function renderDetalleIndicadorDia(ind){
   const pro = ind.promotores ?? ind.promotor ?? ind.positivos ?? null;
   const det = ind.detractores ?? ind.detractor ?? ind.negativos ?? null;
@@ -1064,12 +1115,33 @@ async function guardarInd(){
   await g('admin_indicador', payload);
 }
 
-function editarInc(id, nombre, premio, meta){
+function toggleTipoMetaForm(){
+  const sel = $('#x-tipo');
+  const boxInd = $('#x-ind-fields');
+  const boxPts = $('#x-pts-field');
+  if(!sel || !boxInd || !boxPts) return;
+  const esInd = sel.value === 'indicador';
+  boxInd.style.display = esInd ? 'block' : 'none';
+  boxPts.style.display = esInd ? 'none' : 'block';
+}
+
+function editarInc(id){
+  const incRaw = (D.incentivos || []).find(x => x.id === id);
+  if(!incRaw) return;
+  const inc = enrichIncentivo(incRaw);
   editIncId = id;
   drawAdmin();
-  $('#xn').value = nombre;
-  $('#xp').value = premio;
-  $('#xm').value = meta;
+  $('#xn').value = inc.nombre;
+  $('#xp').value = inc.premio;
+  $('#x-tipo').value = inc.tipo_meta || 'puntos';
+  toggleTipoMetaForm();
+  if(inc.tipo_meta === 'indicador'){
+    if($('#x-ind-nom')) $('#x-ind-nom').value = inc.indicador_nombre || '';
+    if($('#x-ind-meta')) $('#x-ind-meta').value = inc.meta_indicador || '';
+    if($('#x-ind-corte')) $('#x-ind-corte').value = inc.corte_indicador || 'Cierre de mes';
+  }else{
+    if($('#xm')) $('#xm').value = inc.meta || 0;
+  }
   $('#xn').focus();
 }
 function limpiarInc(){
@@ -1079,13 +1151,88 @@ function limpiarInc(){
 async function guardarInc(){
   const nombre = $('#xn').value.trim();
   const premio = $('#xp').value.trim();
-  const meta = +$('#xm').value;
+  const tipoMeta = $('#x-tipo') ? $('#x-tipo').value : 'puntos';
+  const metaPts = $('#xm') ? Math.max(0, +$('#xm').value || 0) : 0;
+  const indNombre = $('#x-ind-nom') ? $('#x-ind-nom').value.trim() : '';
+  const metaInd = $('#x-ind-meta') ? $('#x-ind-meta').value.trim() : '';
+  const corteInd = $('#x-ind-corte') ? ($('#x-ind-corte').value.trim() || 'Cierre de mes') : 'Cierre de mes';
+
   if(!nombre || !premio){ alert('Ingresa el nombre y el premio del incentivo'); return; }
-  const payload = editIncId
-    ? {p_id: editIncId, p_nombre: nombre, p_premio: premio, p_meta: meta}
-    : {p_nombre: nombre, p_premio: premio, p_meta: meta};
+  if(tipoMeta === 'indicador' && (!indNombre || !metaInd)){
+    alert('Selecciona el indicador y define la meta del indicador');
+    return;
+  }
+  if(tipoMeta === 'puntos' && metaPts <= 0){
+    alert('Ingresa la meta de puntos');
+    return;
+  }
+
+  const idActual = editIncId;
+  saveMetaLocalIncentivo(idActual, nombre, tipoMeta, indNombre, metaInd, corteInd);
   editIncId = null;
-  await g('admin_incentivo', payload);
+
+  const payload = {
+    ...(idActual ? {p_id: idActual} : {}),
+    p_nombre: nombre,
+    p_premio: premio,
+    p_meta: tipoMeta === 'puntos' ? metaPts : 0,
+    p_tipo_meta: tipoMeta,
+    p_indicador_nombre: tipoMeta === 'indicador' ? indNombre : '',
+    p_meta_indicador: tipoMeta === 'indicador' ? metaInd : '',
+    p_corte_indicador: tipoMeta === 'indicador' ? corteInd : ''
+  };
+
+  try{
+    await g('admin_incentivo', payload);
+  }catch(e){
+    await g('admin_incentivo', {
+      ...(idActual ? {p_id: idActual} : {}),
+      p_nombre: nombre,
+      p_premio: premio,
+      p_meta: tipoMeta === 'puntos' ? metaPts : 0
+    });
+  }
+}
+
+async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
+  const notaEl = $('#val-inc-nota-' + incId);
+  const nota = notaEl ? notaEl.value.trim() : '';
+  setValidacionLocalIncentivo(incId, S.ced, {
+    estado: 'pendiente',
+    nota_usuario: nota,
+    solicitada_en: new Date().toISOString()
+  });
+  try{
+    await rpc('solicitar_validacion_incentivo', {
+      p_ced: S.ced,
+      p_clave: S.clave,
+      p_incentivo_id: incId,
+      p_nota: nota
+    });
+  }catch(e){}
+  notify('📋 Validación solicitada al líder', `Enviaste tu cierre/corte para "${nombreInc}" (${corteTxt}).`, 'success');
+  await load();
+}
+
+async function validarIncentivoLider(incId, ced, aprobar){
+  const notaEl = $('#nota-lider-' + incId + '-' + ced);
+  const notaLider = notaEl ? notaEl.value.trim() : '';
+  setValidacionLocalIncentivo(incId, ced, {
+    estado: aprobar ? 'aprobada' : 'rechazada',
+    nota_lider: notaLider,
+    resuelta_en: new Date().toISOString()
+  });
+  try{
+    await rpc('admin_validar_incentivo', {
+      p_admin: S.clave,
+      p_incentivo_id: incId,
+      p_ced: ced,
+      p_aprobar: aprobar,
+      p_nota_lider: notaLider
+    });
+  }catch(e){}
+  notify(aprobar ? '✔ Cierre/corte validado' : '↩ Validación rechazada', aprobar ? 'El usuario ya puede compartir su imagen de logro.' : 'Se registró la observación del líder.', aprobar ? 'success' : 'warn');
+  await load();
 }
 
 async function guardarPuntosIncreible(){
@@ -1140,6 +1287,101 @@ async function cambiarEquipoPersona(ced, nombre){
   drawAdmin();
 }
 
+function adminIncentivosView(){
+  const pendientesVal = (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente');
+  const aprobadasVal = (VALIDACIONES_INC || []).filter(v => v.estado === 'aprobada');
+  const opcionesInd = (D.indicadores || []).map(i => i.nombre);
+
+  const bandejaValidacion = `<div class="card" style="border-left:5px solid var(--purple)">
+    <h3 style="margin-bottom:6px">🕵️ Validación de cierre o corte de indicador por líder (${pendientesVal.length} pendientes)</h3>
+    <p class="mute" style="margin-top:0">Cuando un incentivo es por <b>meta en indicador</b>, al cierre o corte el líder valida si se cumplió el indicador.</p>
+    ${pendientesVal.length ? pendientesVal.map(v => {
+      const incRaw = (D.incentivos || []).find(x => String(x.id) === String(v.incentivo_id));
+      const inc = incRaw ? enrichIncentivo(incRaw) : {
+        nombre: v.incentivo_nombre || 'Incentivo',
+        premio: v.premio || '',
+        indicador_nombre: v.indicador_nombre || '',
+        meta_indicador: v.meta_indicador || '',
+        corte_indicador: v.corte_indicador || ''
+      };
+      return `<div class="val-box" style="margin-bottom:8px">
+        <div class="row">
+          <div>
+            <b>${esc(v.nombre)}</b> <span class="mute">(CC ${esc(v.cedula)})</span> ${equipoLabel(getEquipo(v.nombre, v.cedula))}
+            <div style="margin-top:3px">Incentivo: <b>${esc(inc.nombre)}</b> · Premio: <b>${esc(inc.premio)}</b></div>
+            <div class="mute">Indicador: <b>${esc(inc.indicador_nombre)}</b> · Meta: <b>${esc(inc.meta_indicador)}</b> · Corte/Cierre: <b>${esc(inc.corte_indicador)}</b></div>
+            ${v.nota_usuario ? `<div style="margin-top:4px;font-size:.88rem">Nota del usuario: "${esc(v.nota_usuario)}"</div>` : ''}
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <input id="nota-lider-${v.incentivo_id}-${esc(v.cedula)}" placeholder="Observación o validación del líder (opcional)">
+          <div class="row" style="gap:6px">
+            <button onclick="validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', true)">✔ Validar cierre / corte</button>
+            <button class="sec" style="color:var(--coral)" onclick="validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', false)">Rechazar</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') : '<p class="mute" style="margin:0">No hay cierres o cortes de indicador pendientes por validar.</p>'}
+    ${aprobadasVal.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)" class="mute"><b>Validados recientemente:</b> ${aprobadasVal.map(a => `${esc(a.nombre)} (${esc(a.incentivo_nombre || a.incentivo_id)})`).join(', ')}</div>` : ''}
+  </div>`;
+
+  return `${bandejaValidacion}
+  <div class="card">
+    <h3 style="margin-bottom:8px">${editIncId ? 'Editar incentivo #' + editIncId : 'Nuevo incentivo (por puntos o por indicador)'}</h3>
+    <p class="mute">Mes actual (${esc(D.mes)}).</p>
+    <input id="xn" placeholder="Nombre del incentivo">
+    <input id="xp" placeholder="Premio a entregar">
+    <label style="font-size:.85rem">Tipo de meta</label>
+    <select id="x-tipo" onchange="toggleTipoMetaForm()">
+      <option value="puntos">Meta en puntos</option>
+      <option value="indicador">Meta en indicador (requiere validación de cierre/corte con líder)</option>
+    </select>
+    <div id="x-pts-field">
+      <label style="font-size:.85rem">Meta de puntos</label>
+      <input id="xm" type="number" placeholder="Ej: 120">
+    </div>
+    <div id="x-ind-fields" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <label style="font-size:.85rem">Indicador</label>
+          <select id="x-ind-nom">
+            ${opcionesInd.length
+              ? opcionesInd.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('')
+              : '<option value="CSAT">CSAT</option><option value="NPS">NPS</option>'}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.85rem">Meta del indicador (ej: ≥ 90%, 100%, 15 días)</label>
+          <input id="x-ind-meta" placeholder="Ej: ≥ 90% en cierre">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:.85rem">Cierre o corte del indicador a validar</label>
+        <input id="x-ind-corte" value="Cierre de mes" placeholder="Ej: Cierre de mes, Corte quincenal">
+      </div>
+    </div>
+    <button onclick="guardarInc()">${editIncId ? 'Actualizar incentivo' : 'Crear incentivo'}</button>
+    ${editIncId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
+  </div>
+  ${(D.incentivos || []).map(raw => {
+    const i = enrichIncentivo(raw);
+    const esInd = i.tipo_meta === 'indicador';
+    return `<div class="card row">
+      <div>
+        <b>${esc(i.nombre)}</b> · ${esc(i.premio)}
+        ${esInd
+          ? `<span class="tag ind-goal" style="margin-left:4px">Meta indicador: ${esc(i.indicador_nombre)} (${esc(i.meta_indicador)}) · ${esc(i.corte_indicador)}</span>`
+          : `<span class="tag" style="margin-left:4px">Meta: ${i.meta} pts</span>`}
+        <span class="mute" style="margin-left:4px">${esc(i.mes)}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="sec" onclick="editarInc(${i.id})">Editar</button>
+        <button class="sec" style="color:var(--coral)" onclick="del('incentivos',${i.id})">Borrar</button>
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
 // ---------- Vista del administrador ----------
 const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
@@ -1148,6 +1390,7 @@ function drawAdmin(){
     : D.ranking.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
   const totalSolicitudesMis = MISIONES.reduce((acc, m) => acc + ((m.pendientes_validacion && m.pendientes_validacion.length) || 0), 0);
+  const totalSolicitudesInc = (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente').length;
 
   const v={
   pos:()=>posView(),
@@ -1207,22 +1450,7 @@ function drawAdmin(){
       <button class="sec" style="color:var(--coral)" onclick="del('indicadores',${i.id})">Borrar</button>
     </div>
   </div>`).join(''),
-  inc:()=>`<div class="card">
-    <h3 style="margin-bottom:8px">${editIncId ? 'Editar premio #' + editIncId : 'Nuevo premio a conseguir'}</h3>
-    <p class="mute">Mes actual (${esc(D.mes)}).</p>
-    <input id="xn" placeholder="Nombre">
-    <input id="xp" placeholder="Premio">
-    <input id="xm" type="number" placeholder="Meta de puntos">
-    <button onclick="guardarInc()">${editIncId ? 'Actualizar premio' : 'Crear premio'}</button>
-    ${editIncId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
-  </div>`
-  +D.incentivos.map(i=>`<div class="card row">
-    <span>${esc(i.nombre)} · ${esc(i.premio)} · ${i.meta} pts <span class="mute">${esc(i.mes)}</span></span>
-    <div style="display:flex;gap:6px">
-      <button class="sec" onclick="editarInc(${i.id}, '${esc(i.nombre).replace(/'/g,"\\'")}', '${esc(i.premio).replace(/'/g,"\\'")}', ${i.meta})">Editar</button>
-      <button class="sec" style="color:var(--coral)" onclick="del('incentivos',${i.id})">Borrar</button>
-    </div>
-  </div>`).join('')}[tab]();
+  inc:()=>adminIncentivosView()}[tab]();
 
   app.innerHTML=`
   ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay nuevos cambios en la operación!</span><button onclick="load()">Actualizar página</button></div>` : ''}
@@ -1237,6 +1465,7 @@ function drawAdmin(){
     let badge = '';
     if(k==='post' && D.pendientes.length) badge = ` (${D.pendientes.length})`;
     if(k==='mis' && totalSolicitudesMis) badge = ` (${totalSolicitudesMis})`;
+    if(k==='inc' && totalSolicitudesInc) badge = ` (${totalSolicitudesInc})`;
     return `<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${badge}</button>`;
   }).join('')}</div>
   ${v}
@@ -1250,6 +1479,7 @@ function drawAdmin(){
   </div>
   <div class="card">${rkFiltrado.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)} ${equipoLabel(getEquipo(x.nombre, x.cedula))}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
   if(tab==='dia')avisoFecha();
+  if(tab==='inc')toggleTipoMetaForm();
 }
 
 // ---------- Admin: Gestión de Misiones, Insignias y Aprobaciones ----------
@@ -1592,10 +1822,41 @@ function mision(){
   <div class="btns"><button onclick="popPost()">✨ Postular una atención</button><button class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
 }
 function incCards(pts){
-  const inc=D.incentivos.slice().sort((a,b)=>a.meta-b.meta),pd=perfectDay(),r=ritmo();
+  const inc=(D.incentivos||[]).map(enrichIncentivo).slice().sort((a,b)=>(a.tipo_meta==='indicador'?1:0)-(b.tipo_meta==='indicador'?1:0)||(a.meta-b.meta));
+  const pd=perfectDay(),r=ritmo();
   if(!inc.length)return '<p class="mute">Aún no hay premios a conseguir definidos para este mes.</p>';
+
   return inc.map(n=>{
-    const pct=Math.min(100,Math.round(pts/n.meta*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80;
+    if(n.tipo_meta === 'indicador'){
+      const val = getValidacionIncentivoUsuario(n.id, S.ced);
+      const est = val ? val.estado : null;
+      const validado = est === 'aprobada';
+      const pendienteLider = est === 'pendiente';
+      const rechazada = est === 'rechazada';
+      const rb = validado ? 'VALIDADO POR LÍDER 🏆' : pendienteLider ? 'EN VALIDACIÓN LÍDER ⏳' : 'META POR INDICADOR 🎯';
+
+      return `<div class="card inc ${validado?'lg':''}"><span class="rb">${rb}</span>
+      <div class="pr"><span class="gift">${validado?'🏆':'🎯'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · Indicador: <b>${esc(n.indicador_nombre)}</b> · Meta: <b>${esc(n.meta_indicador)}</b></span></div></div>
+      <div class="lider-box">
+        <div><b>🕒 Cierre / Corte del indicador:</b> ${esc(n.corte_indicador || 'Cierre de mes')}</div>
+        <div class="mute" style="margin-top:3px">Este incentivo se valida con tu líder al cierre o corte del indicador.</div>
+        ${validado
+          ? `<div class="row" style="margin-top:8px">
+               <span class="ok">✔ Cierre/corte validado por el líder${val && val.nota_lider ? ' · ' + esc(val.nota_lider) : ''}</span>
+               <button class="gold" onclick="copiarImagenLogro('${esc(n.nombre).replace(/'/g,"\\'")}', 0, '🏆', '${esc(n.premio).replace(/'/g,"\\'")}', 'Premio validado por indicador (${esc(n.indicador_nombre)} · ${esc(n.corte_indicador)}):')">📤 Compartir imagen de logro</button>
+             </div>`
+          : pendienteLider
+            ? `<div style="margin-top:8px"><span class="tag pendiente">⏳ Solicitud enviada · Esperando validación del líder en ${esc(n.corte_indicador)}</span></div>`
+            : `<div style="margin-top:8px">
+                 ${rechazada ? `<div class="err" style="min-height:0;margin-bottom:6px">Observación del líder: ${esc((val && val.nota_lider) || 'Revisa el resultado del corte/cierre.')}</div>` : ''}
+                 <input id="val-inc-nota-${n.id}" placeholder="Opcional: resultado del cierre/corte o enlace de evidencia">
+                 <button onclick="solicitarValidacionIncentivo(${n.id}, '${esc(n.nombre).replace(/'/g,"\\'")}', '${esc(n.corte_indicador).replace(/'/g,"\\'")}')">✔ Solicitar validación de cierre/corte con el líder</button>
+               </div>`
+        }
+      </div></div>`;
+    }
+
+    const pct=Math.min(100,Math.round(pts/Math.max(1,n.meta)*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80;
     const rb=ok?'¡META ALCANZADA! 🏆':cerca?'¡CASI LO TIENES! 🔥':'PREMIO A CONSEGUIR ✨';
     let how='';
     if(!ok&&pd){
