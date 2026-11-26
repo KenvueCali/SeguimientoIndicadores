@@ -50,6 +50,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:9px 15px;border-radius:10px}
 .tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink);box-shadow:0 4px 12px rgba(15,42,67,.18)}
 
+/* Campana de notificaciones del admin */
+.bell-wrap{position:relative;display:inline-block}
+.bell-btn{position:relative;background:var(--card);color:var(--ink);border:1px solid var(--line);padding:9px 13px;border-radius:10px;display:inline-flex;align-items:center;gap:6px}
+.bell-btn.has-alert{border-color:var(--gold);background:linear-gradient(135deg,rgba(244,196,78,.22),var(--card));box-shadow:0 0 0 2px rgba(224,165,38,.22)}
+.bell-badge{background:var(--coral);color:#fff;font-size:.75rem;font-weight:800;padding:1px 7px;border-radius:999px;line-height:1.3}
+.bell-pop{position:absolute;right:0;top:calc(100% + 8px);width:min(420px,92vw);max-height:75vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:14px;z-index:95}
+.bell-sec{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.bell-sec:first-of-type{margin-top:6px;padding-top:0;border-top:0}
+.bell-item{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-top:6px;font-size:.88rem}
+
 .seg-switch{display:inline-flex;background:var(--bg);padding:4px;border-radius:10px;border:1px solid var(--line);gap:4px;margin-bottom:10px}
 .seg-switch button{padding:6px 12px;font-size:.85rem;background:transparent;color:var(--mute);border-radius:7px;transform:none}
 .seg-switch button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -348,6 +358,7 @@ let selP='', tab='post', userTab='resultados', msg='';
 let vistaRk='equipo';
 let vistaNeg='global';
 let adminFiltroEq='global';
+let bellOpen=false;
 let editIndId=null, editIncId=null, editUsrCed=null;
 let hayActualizacion=false, pollTimer=null, clockTimer=null, lastSignature=null;
 
@@ -568,7 +579,7 @@ function login(err=''){
   $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
-function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);S=null;D=null;lastSignature=null;sessionStorage.removeItem('s');login()}
+function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);S=null;D=null;lastSignature=null;bellOpen=false;sessionStorage.removeItem('s');login()}
 function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
 
 // ---------- Vista de la persona ----------
@@ -1382,6 +1393,109 @@ function adminIncentivosView(){
   }).join('')}`;
 }
 
+// ---------- Campana de Notificaciones del Admin ----------
+function getPendientesMisionesAdmin(){
+  const list = [];
+  (MISIONES || []).forEach(m => {
+    (m.pendientes_validacion || []).forEach(pv => {
+      list.push({
+        ...pv,
+        mision_id: m.id,
+        mision_titulo: m.titulo,
+        mision_puntos: m.puntos,
+        insignia_nombre: m.insignia_nombre,
+        insignia_icono: m.insignia_icono
+      });
+    });
+  });
+  return list;
+}
+
+function getPendientesIncentivosAdmin(){
+  return (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente');
+}
+
+function toggleBell(){
+  bellOpen = !bellOpen;
+  drawAdmin();
+}
+
+function irATabValidacion(targetTab){
+  bellOpen = false;
+  tab = targetTab;
+  drawAdmin();
+}
+
+function campanaAdminHtml(){
+  const pendPost = (D && D.pendientes) ? D.pendientes : [];
+  const pendMis = getPendientesMisionesAdmin();
+  const pendInc = getPendientesIncentivosAdmin();
+  const total = pendPost.length + pendMis.length + pendInc.length;
+
+  return `<div class="bell-wrap">
+    <button class="bell-btn ${total?'has-alert':''}" onclick="toggleBell()" aria-expanded="${bellOpen?'true':'false'}" aria-label="Notificaciones pendientes de validación">
+      <span>🔔</span>
+      <span style="font-size:.88rem">Validaciones</span>
+      <span class="bell-badge">${total}</span>
+    </button>
+    ${bellOpen ? `<div class="bell-pop" role="region" aria-label="Bandeja de validaciones pendientes">
+      <div class="row">
+        <b>🔔 Pendientes por validar (${total})</b>
+        <button class="sec" style="padding:2px 8px;font-size:.8rem" onclick="bellOpen=false;drawAdmin()">Cerrar</button>
+      </div>
+
+      <div class="bell-sec">
+        <div class="row">
+          <b>🚀 Retos / Misiones completadas (${pendMis.length})</b>
+          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver pestaña</button>
+        </div>
+        ${pendMis.length ? pendMis.map(item => `
+          <div class="bell-item">
+            <div><b>${esc(item.nombre)}</b> <span class="mute">· ${esc(item.mision_titulo)}</span> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
+            ${item.nota ? `<div class="mute" style="font-size:.8rem;margin-top:2px">Evidencia: ${esc(item.nota)}</div>` : ''}
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button style="padding:4px 10px;font-size:.8rem" onclick="bellOpen=false;aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Aprobar</button>
+              <button class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick="bellOpen=false;aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', false)">Rechazar</button>
+            </div>
+          </div>
+        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin misiones pendientes.</div>'}
+      </div>
+
+      <div class="bell-sec">
+        <div class="row">
+          <b>🌟 Postulaciones de atención (${pendPost.length})</b>
+          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('post')">Ir a Postulaciones</button>
+        </div>
+        ${pendPost.length ? pendPost.map(p => `
+          <div class="bell-item">
+            <div><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span></div>
+            <div style="margin-top:3px">${esc(p.descripcion)}</div>
+            <div style="margin-top:6px">
+              <button style="padding:4px 10px;font-size:.8rem" onclick="irATabValidacion('post')">Evaluar postulación</button>
+            </div>
+          </div>
+        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin postulaciones pendientes.</div>'}
+      </div>
+
+      <div class="bell-sec">
+        <div class="row">
+          <b>🎯 Cortes / Cierres de incentivo (${pendInc.length})</b>
+          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('inc')">Ver Incentivos</button>
+        </div>
+        ${pendInc.length ? pendInc.map(v => `
+          <div class="bell-item">
+            <div><b>${esc(v.nombre)}</b> <span class="mute">· ${esc(v.incentivo_nombre || 'Incentivo')} (${esc(v.corte_indicador || 'Cierre')})</span></div>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button style="padding:4px 10px;font-size:.8rem" onclick="bellOpen=false;validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', true)">✔ Validar</button>
+              <button class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick="bellOpen=false;validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', false)">Rechazar</button>
+            </div>
+          </div>
+        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin cortes de incentivo pendientes.</div>'}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
 // ---------- Vista del administrador ----------
 const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
@@ -1389,8 +1503,8 @@ function drawAdmin(){
     ? D.ranking
     : D.ranking.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
-  const totalSolicitudesMis = MISIONES.reduce((acc, m) => acc + ((m.pendientes_validacion && m.pendientes_validacion.length) || 0), 0);
-  const totalSolicitudesInc = (VALIDACIONES_INC || []).filter(v => v.estado === 'pendiente').length;
+  const totalSolicitudesMis = getPendientesMisionesAdmin().length;
+  const totalSolicitudesInc = getPendientesIncentivosAdmin().length;
 
   const v={
   pos:()=>posView(),
@@ -1456,8 +1570,9 @@ function drawAdmin(){
   ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay nuevos cambios en la operación!</span><button onclick="load()">Actualizar página</button></div>` : ''}
   <div class="top">
     <h1>Administración</h1>
-    <div style="display:flex;gap:6px">
-      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas sonoras habilitadas.','info')">🔔 Probar sonido</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      ${campanaAdminHtml()}
+      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas sonoras habilitadas.','info')">🔊 Probar sonido</button>
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
@@ -1466,7 +1581,7 @@ function drawAdmin(){
     if(k==='post' && D.pendientes.length) badge = ` (${D.pendientes.length})`;
     if(k==='mis' && totalSolicitudesMis) badge = ` (${totalSolicitudesMis})`;
     if(k==='inc' && totalSolicitudesInc) badge = ` (${totalSolicitudesInc})`;
-    return `<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${badge}</button>`;
+    return `<button class="${k===tab?'on':''}" onclick="bellOpen=false;editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${badge}</button>`;
   }).join('')}</div>
   ${v}
   <div class="row" style="margin:28px 0 10px">
@@ -1502,19 +1617,7 @@ function resumenAsignacion(m){
 }
 
 function adminMisionesView(){
-  const pendientesList = [];
-  MISIONES.forEach(m => {
-    (m.pendientes_validacion || []).forEach(pv => {
-      pendientesList.push({
-        ...pv,
-        mision_id: m.id,
-        mision_titulo: m.titulo,
-        mision_puntos: m.puntos,
-        insignia_nombre: m.insignia_nombre,
-        insignia_icono: m.insignia_icono
-      });
-    });
-  });
+  const pendientesList = getPendientesMisionesAdmin();
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
     <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión (por aprobar: ${pendientesList.length})</h3>
