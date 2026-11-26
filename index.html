@@ -54,10 +54,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .bell-btn{position:relative;background:var(--card);color:var(--ink);border:1px solid var(--line);padding:9px 13px;border-radius:10px;display:inline-flex;align-items:center;gap:6px}
 .bell-btn.has-alert{border-color:var(--gold);background:linear-gradient(135deg,rgba(244,196,78,.22),var(--card));box-shadow:0 0 0 2px rgba(224,165,38,.22)}
 .bell-badge{background:var(--coral);color:#fff;font-size:.75rem;font-weight:800;padding:1px 7px;border-radius:999px;line-height:1.3}
-.bell-pop{position:absolute;right:0;top:calc(100% + 8px);width:min(420px,92vw);max-height:75vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:14px;z-index:95}
+.bell-pop{position:absolute;right:0;top:calc(100% + 8px);width:min(440px,92vw);max-height:75vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:14px;z-index:95}
 .bell-sec{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .bell-sec:first-of-type{margin-top:6px;padding-top:0;border-top:0}
-.bell-item{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-top:6px;font-size:.88rem}
+.bell-item{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:6px;font-size:.88rem}
 
 .live-pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(14,143,131,.14);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulseDot 1.6s infinite}
@@ -368,6 +368,7 @@ let MISIONES=[], NEGATIVOS=[], VALIDACIONES_INC=[];
 let OPCIONES_CONDUCTA = JSON.parse(localStorage.getItem('opciones_conducta_local') || '["Mal lenguaje","Actitud grosera","Comportamiento errado"]');
 let MISIONES_LOCAL = JSON.parse(localStorage.getItem('misiones_estado_local') || '{}');
 let MISIONES_META_LOCAL = JSON.parse(localStorage.getItem('misiones_meta_local') || '{}');
+let MISIONES_PENDIENTES_LOCAL = JSON.parse(localStorage.getItem('misiones_pendientes_local') || '{}');
 let INCENTIVOS_META_LOCAL = JSON.parse(localStorage.getItem('incentivos_meta_local') || '{}');
 let INCENTIVOS_VAL_LOCAL = JSON.parse(localStorage.getItem('incentivos_val_local') || '{}');
 let selP='', tab='post', userTab='resultados', msg='';
@@ -383,6 +384,28 @@ async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
   const tx=await r.text(); let j=null; try{j=tx?JSON.parse(tx):null}catch(e){j={message:tx}}
   if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
+}
+
+function guardarPendienteLocalMision(misionId, cedula, nombre, nota='', solicitadaEn=null){
+  const k = String(misionId);
+  if(!MISIONES_PENDIENTES_LOCAL[k]) MISIONES_PENDIENTES_LOCAL[k] = [];
+  const idx = MISIONES_PENDIENTES_LOCAL[k].findIndex(x => String(x.cedula) === String(cedula));
+  const entry = {
+    cedula: String(cedula),
+    nombre: String(nombre || 'Usuario'),
+    nota: String(nota || ''),
+    solicitada_en: solicitadaEn || new Date().toISOString()
+  };
+  if(idx >= 0) MISIONES_PENDIENTES_LOCAL[k][idx] = { ...MISIONES_PENDIENTES_LOCAL[k][idx], ...entry };
+  else MISIONES_PENDIENTES_LOCAL[k].push(entry);
+  localStorage.setItem('misiones_pendientes_local', JSON.stringify(MISIONES_PENDIENTES_LOCAL));
+}
+
+function quitarPendienteLocalMision(misionId, cedula){
+  const k = String(misionId);
+  if(!MISIONES_PENDIENTES_LOCAL[k]) return;
+  MISIONES_PENDIENTES_LOCAL[k] = MISIONES_PENDIENTES_LOCAL[k].filter(x => String(x.cedula) !== String(cedula));
+  localStorage.setItem('misiones_pendientes_local', JSON.stringify(MISIONES_PENDIENTES_LOCAL));
 }
 
 function getEstadoLocalMision(misionId){
@@ -417,7 +440,28 @@ function enrichMisiones(rawList){
       : (metaLoc.asignados_cedulas || []).map(String);
     const insignia_nombre = (m.insignia_nombre && m.insignia_nombre.trim()) || metaLoc.insignia_nombre || ('Insignia: ' + titulo);
     const insignia_icono = (m.insignia_icono && m.insignia_icono.trim()) || metaLoc.insignia_icono || '🏅';
-    return { ...m, titulo, obligatoria, asignacion_tipo, asignados_cedulas, insignia_nombre, insignia_icono };
+
+    const remPend = Array.isArray(m.pendientes_validacion) ? m.pendientes_validacion : [];
+    const locPend = MISIONES_PENDIENTES_LOCAL[String(m.id)] || [];
+    const completadosNorm = new Set((m.completados || []).map(c => norm(c)));
+    const mapPend = new Map();
+    [...remPend, ...locPend].forEach(pv => {
+      if(!pv || !pv.cedula) return;
+      if(completadosNorm.has(norm(pv.nombre))) return;
+      const cedStr = String(pv.cedula);
+      if(!mapPend.has(cedStr)) mapPend.set(cedStr, { ...pv, cedula: cedStr });
+    });
+
+    return {
+      ...m,
+      titulo,
+      obligatoria,
+      asignacion_tipo,
+      asignados_cedulas,
+      insignia_nombre,
+      insignia_icono,
+      pendientes_validacion: Array.from(mapPend.values())
+    };
   });
 }
 
@@ -498,7 +542,7 @@ async function loadExtras(){
   try{
     const rawM = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced}) || [];
     MISIONES = enrichMisiones(rawM);
-  }catch(e){ MISIONES = []; }
+  }catch(e){ MISIONES = enrichMisiones([]); }
   try{
     NEGATIVOS = await rpc('listar_negativos', {}) || [];
   }catch(e){ NEGATIVOS = []; }
@@ -537,7 +581,7 @@ function buildSignature(d, h, mis, vals){
   const pend = ((d && d.pendientes) || []).map(p=>`${p.id}`).join(',');
   const upd = h && h.actualizado ? h.actualizado : '';
   const rk = ((d && d.ranking) || []).map(r=>`${r.nombre}:${r.puntos}`).join('|');
-  const mSig = (mis||[]).map(m=>`${m.id}:${(m.pendientes_validacion||[]).length}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
+  const mSig = (mis||[]).map(m=>`${m.id}:${(m.pendientes_validacion||[]).map(x=>x.cedula).join(',')}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
   const vSig = (vals||[]).map(v=>`${v.incentivo_id}:${v.cedula}:${v.estado}`).join('|');
   return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}`;
 }
@@ -602,8 +646,8 @@ function detectarYNotificarCambios(prevState, nextState){
       (m.pendientes_validacion || []).forEach(pv => {
         if(!prevMisPend.has(`${m.id}:${pv.cedula}`)){
           notify(
-            '🚀 Reto marcado como completado',
-            `${pv.nombre} marcó "${m.titulo}" como completado y pide validación.`,
+            '🚀 Reto marcado por ' + (pv.nombre || 'un usuario'),
+            `${pv.nombre || 'Un usuario'} (CC ${pv.cedula}) marcó "${m.titulo}" para validación del líder.`,
             'alert',
             `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
             `adm-mis-${m.id}-${pv.cedula}`
@@ -735,12 +779,21 @@ function setupRealtime(){
 
   rtChannel.on('broadcast', { event: 'reto_completado' }, ({ payload }) => {
     if(!S || !S.a) return;
+    const quien = payload?.nombre || 'Un usuario';
+    const ced = payload?.cedula || '';
+    const mId = payload?.mision_id;
+    const mTit = payload?.mision_titulo || 'una misión';
+    if(mId && ced){
+      guardarPendienteLocalMision(mId, ced, quien, payload?.nota || '', payload?.solicitada_en || new Date().toISOString());
+      MISIONES = enrichMisiones(MISIONES);
+      drawAdmin();
+    }
     notify(
-      '🚀 Reto completado por usuario',
-      `${payload?.nombre || 'Un usuario'} marcó "${payload?.mision_titulo || 'una misión'}" como completada.`,
+      `🚀 Reto marcado por ${quien}`,
+      `${quien}${ced ? ` (CC ${ced})` : ''} marcó "${mTit}" como completada para validación del líder.`,
       'alert',
-      `<button type="button" class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`,
-      `evt-reto-${payload?.cedula || ''}-${payload?.mision_id || ''}`
+      `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+      `evt-reto-${ced}-${mId || ''}`
     );
     scheduleRealtimeSync(false);
   });
@@ -760,12 +813,15 @@ function setupRealtime(){
   rtChannel.on('broadcast', { event: 'validacion_resuelta' }, ({ payload }) => {
     if(!S || S.a) return;
     if(payload?.cedula && String(payload.cedula) !== String(S.ced)) return;
+    if(payload?.mision_id){
+      setEstadoLocalMision(payload.mision_id, payload.aprobada ? 'aprobada' : 'aceptada');
+    }
     notify(
       payload?.aprobada ? '✅ ¡Validación aprobada!' : '💬 Actualización de validación',
       payload?.mensaje || 'El administrador actualizó el estado de tu solicitud.',
       payload?.aprobada ? 'success' : 'info',
       '',
-      `evt-val-${payload?.cedula || S.ced}-${payload?.aprobada ? '1' : '0'}`
+      `evt-val-${payload?.cedula || S.ced}-${payload?.mision_id || ''}-${payload?.aprobada ? '1' : '0'}`
     );
     scheduleRealtimeSync(false);
   });
@@ -1082,7 +1138,7 @@ function seccionRetosUsuario(){
                <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(m.titulo)}, ${Number(m.puntos)||0}, ${jsArg(m.insignia_icono)}, ${jsArg(m.insignia_nombre)})'>📤 Compartir imagen de logro</button>
              </div>`
           : pendienteVal
-            ? `<span class="tag pendiente">⏳ Completada · Esperando validación del admin</span>`
+            ? `<span class="tag pendiente">⏳ Completada · Esperando validación del líder</span>`
             : exp
               ? `<span class="mute">El tiempo para esta misión finalizó.</span>`
               : aceptada
@@ -1134,10 +1190,22 @@ async function omitirMision(misionId, titulo){
 async function marcarMisionCompletada(misionId, tituloMision='Misión'){
   const elNota = $('#ev-nota-' + misionId);
   const nota = elNota ? elNota.value.trim() : '';
+  const nombreEnvio = (D && D.nombre) ? D.nombre : ('Cédula ' + S.ced);
+  const ahoraIso = new Date().toISOString();
+
   setEstadoLocalMision(misionId, 'pendiente');
+  guardarPendienteLocalMision(misionId, S.ced, nombreEnvio, nota, ahoraIso);
+  MISIONES = enrichMisiones(MISIONES);
+
   broadcastEvent('reto_completado', {
-    cedula: S.ced, nombre: D.nombre, mision_id: misionId, mision_titulo: tituloMision, nota
+    cedula: S.ced,
+    nombre: nombreEnvio,
+    mision_id: misionId,
+    mision_titulo: tituloMision,
+    nota,
+    solicitada_en: ahoraIso
   });
+
   try{
     await rpc('responder_mision', {
       p_ced: S.ced, p_clave: S.clave, p_mision_id: misionId, p_accion: 'solicitar', p_nota: nota
@@ -1149,7 +1217,8 @@ async function marcarMisionCompletada(misionId, tituloMision='Misión'){
       });
     }catch(err){}
   }
-  notify('🚀 Misión enviada a validación', 'El administrador recibió la alerta en tiempo real en su campana.', 'success', '', `mis-env-${misionId}`);
+
+  notify('🚀 Enviado a validación del líder', `Quedó registrado que ${nombreEnvio} marcó "${tituloMision}" como completada.`, 'success', '', `mis-env-${misionId}`);
   await syncState({ silent: false, allowNotif: false });
 }
 
@@ -1689,19 +1758,20 @@ function campanaAdminHtml(){
 
       <div class="bell-sec">
         <div class="row">
-          <b>🚀 Retos / Misiones completadas (${pendMis.length})</b>
-          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver pestaña</button>
+          <b>🚀 Marcados por validar (${pendMis.length})</b>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver sección</button>
         </div>
         ${pendMis.length ? pendMis.map(item => `
           <div class="bell-item">
-            <div><b>${esc(item.nombre)}</b> <span class="mute">· ${esc(item.mision_titulo)}</span> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
+            <div><b>${esc(item.nombre)}</b> <span class="mute">(CC ${esc(item.cedula)})</span> ${equipoLabel(getEquipo(item.nombre, item.cedula))}</div>
+            <div style="margin-top:3px">Marcó: <b>${esc(item.mision_titulo)}</b> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
             ${item.nota ? `<div class="mute" style="font-size:.8rem;margin-top:2px">Evidencia: ${esc(item.nota)}</div>` : ''}
             <div style="display:flex;gap:6px;margin-top:6px">
               <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Aprobar</button>
               <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
             </div>
           </div>
-        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin misiones pendientes.</div>'}
+        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin retos marcados por validar.</div>'}
       </div>
 
       <div class="bell-sec">
@@ -1869,19 +1939,19 @@ function adminMisionesView(){
   const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
-    <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión (por aprobar: ${pendientesList.length})</h3>
-    <p class="mute" style="margin-top:0">Revisa quién marcó la misión como completada y apruébala para otorgar los puntos y la insignia.</p>
+    <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión o reto (${pendientesList.length} por validar)</h3>
+    <p class="mute" style="margin-top:0">Aquí ves quién envió a validación del líder cada misión o reto. Aprueba o rechaza para validar su cumplimiento.</p>
     ${pendientesList.length ? pendientesList.map(item => {
       const fechaSol = item.solicitada_en ? new Date(item.solicitada_en).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       return `<div class="val-box row" style="margin-bottom:8px">
         <div>
           <div><b>${esc(item.nombre)}</b> <span class="mute">(CC ${esc(item.cedula)})</span> ${equipoLabel(getEquipo(item.nombre, item.cedula))}</div>
-          <div style="margin-top:3px">Marcó completada: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
+          <div style="margin-top:3px">Marcó: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
           ${item.nota ? `<div class="mute" style="margin-top:3px">Evidencia / nota: ${esc(item.nota)}</div>` : ''}
           ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Marcada el: ${esc(fechaSol)}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px">
-          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Aprobar y dar insignia</button>
+          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Validar y dar insignia</button>
           <button type="button" class="sec" style="color:var(--coral)" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
         </div>
       </div>`;
@@ -1945,7 +2015,12 @@ function adminMisionesView(){
         <button type="button" class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
       </div>
       <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <b>${esc(resumenAsignacion(m))}</b> · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
-      ${marcadasPend.length ? `<p style="margin:6px 0 0;font-size:.88rem"><b>Marcada como completada por:</b> ${marcadasPend.map(pv=>`<span class="tag pendiente" style="margin-right:4px">${esc(pv.nombre)} (${esc(pv.cedula)})</span>`).join('')}</p>` : ''}
+      ${marcadasPend.length ? `<div style="margin:6px 0 0;font-size:.88rem"><b>Marcada como completada por:</b> ${marcadasPend.map(pv=>`
+        <span class="tag pendiente" style="margin-right:6px;margin-top:4px">${esc(pv.nombre)} (CC ${esc(pv.cedula)})
+          <button type="button" style="padding:1px 7px;font-size:.75rem;margin-left:4px" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(pv.cedula)}, true)'>✔</button>
+          <button type="button" class="sec" style="padding:1px 6px;font-size:.75rem;color:var(--coral);border:0" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(pv.cedula)}, false)'>×</button>
+        </span>
+      `).join('')}</div>` : ''}
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
         <label for="m-usr-${m.id}" style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
@@ -2007,15 +2082,17 @@ async function aprobarMision(misionId){
 }
 
 async function aprobarMisionDirecto(misionId, ced, aprobar){
+  quitarPendienteLocalMision(misionId, ced);
+  MISIONES = enrichMisiones(MISIONES);
   await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced, p_aprobar:aprobar});
   broadcastEvent('validacion_resuelta', {
-    cedula: ced, aprobada: aprobar,
+    cedula: ced, mision_id: misionId, aprobada: aprobar,
     mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud de misión fue devuelta para revisión.'
   });
   if(aprobar){
-    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya recibió la alerta en tiempo real.', 'success', '', `apr-mis-${misionId}-${ced}`);
+    notify('🏆 Misión aprobada e insignia otorgada', `Se validó el cumplimiento de la cédula ${ced}.`, 'success', '', `apr-mis-${misionId}-${ced}`);
   }else{
-    notify('↩ Solicitud rechazada', 'Se devolvió la solicitud de validación.', 'warn', '', `rej-mis-${misionId}-${ced}`);
+    notify('↩ Solicitud rechazada', `Se devolvió la solicitud de la cédula ${ced}.`, 'warn', '', `rej-mis-${misionId}-${ced}`);
   }
 }
 
