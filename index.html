@@ -38,6 +38,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .tag{font-size:.78rem;padding:2px 9px;border-radius:20px;background:var(--line);display:inline-block;font-weight:600}
 .tag.aprobada{background:var(--gold);color:#222}
 .tag.pendiente{background:rgba(124,77,255,.16);color:var(--purple);border:1px solid rgba(124,77,255,.35)}
+.tag.aceptada{background:rgba(14,143,131,.16);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
 .tag.feedback,.tag.neg{background:var(--coral);color:#fff}
 .tag.eq-trad{background:#1e6091;color:#fff}
 .tag.eq-soc{background:var(--purple);color:#fff}
@@ -54,9 +55,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .dia .cab{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line)}
 .dia .cab b{text-transform:capitalize}
 .dia .tot{font-weight:800;color:var(--teal);white-space:nowrap;text-align:right}
-.dia .it{display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.dia .it{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line)}
 .dia .it:last-child{border-bottom:0}
-.dia .si{color:var(--teal);font-weight:700}.dia .no{color:var(--coral);font-weight:700}
+.dia .si{color:var(--teal);font-weight:700;white-space:nowrap}.dia .no{color:var(--coral);font-weight:700;white-space:nowrap}
+.ind-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.pill-ind{font-size:.78rem;padding:2px 8px;border-radius:8px;background:var(--bg);border:1px solid var(--line);color:var(--ink)}
+.pill-ind.pro{border-color:rgba(14,143,131,.45);background:rgba(14,143,131,.1);color:var(--teal);font-weight:600}
+.pill-ind.det{border-color:rgba(214,84,63,.45);background:rgba(214,84,63,.1);color:var(--coral);font-weight:600}
+
 .gap{display:flex;gap:12px;align-items:center}
 .gap .ic{font-size:1.8rem;line-height:1}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
@@ -181,8 +187,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .inc .pr b{font-size:1.28rem;display:block;line-height:1.15}
 .inc .pr span{color:var(--mute);font-size:.9rem}
 .inc .rb{position:absolute;top:0;right:0;background:linear-gradient(135deg,#f4c44e,#e0a526);color:#1f1805;font-size:.74rem;font-weight:800;letter-spacing:.04em;padding:5px 13px;border-radius:0 0 0 11px;box-shadow:0 2px 8px rgba(224,165,38,.35)}
-.inc.prox{border-color:var(--teal);box-shadow:0 6px 20px rgba(14,143,131,.22)}
-.inc.prox .rb{background:var(--teal);color:#fff}
 .inc.cerca{border:2px solid #f5be38;box-shadow:0 0 0 3px rgba(224,165,38,.3),0 8px 24px rgba(224,165,38,.28)}
 @media(prefers-reduced-motion:no-preference){.inc.cerca{animation:glw 2.2s ease-in-out infinite}}
 @keyframes glw{50%{box-shadow:0 0 0 7px rgba(224,165,38,.14),0 10px 28px rgba(224,165,38,.36)}}
@@ -217,12 +221,19 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
 .reto-card{border-left:5px solid var(--purple)}
 .reto-card.done{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.12),var(--card))}
+.reto-card.accepted{border-left-color:var(--teal)}
 .ev-box{background:rgba(214,84,63,.12);border:1px solid var(--coral);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.88rem;color:var(--ink)}
 .ev-box b{color:var(--coral)}
 .val-box{background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.3);border-radius:8px;padding:10px 12px;margin-top:10px}
+.timer-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--bg);border:1px solid var(--line);font-size:.82rem;font-weight:700}
 
 .neg-card{border-left:5px solid var(--coral)}
-.neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:3px 10px;border-radius:12px;font-size:.82rem;font-weight:800}
+.board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:14px}
+.board-tile{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(15,42,67,.04)}
+.board-tile.has-neg{border-top-color:var(--coral);background:linear-gradient(180deg,rgba(214,84,63,.08),var(--card))}
+.board-tile .pts-num{font-size:1.7rem;font-weight:800;line-height:1.1;margin-top:8px}
+.board-tile.has-neg .pts-num{color:var(--coral)}
+.board-tile.zero .pts-num{color:var(--teal)}
 </style>
 </head>
 <body>
@@ -319,17 +330,30 @@ const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
 let MISIONES=[], NEGATIVOS=[];
+let MISIONES_LOCAL = JSON.parse(localStorage.getItem('misiones_estado_local') || '{}');
 let selP='', tab='post', userTab='resultados', msg='';
 let vistaRk='equipo';
-let vistaNeg='equipo';
+let vistaNeg='global';
 let adminFiltroEq='global';
 let editIndId=null, editIncId=null, editUsrCed=null;
-let hayActualizacion=false, pollTimer=null, lastSignature=null;
+let hayActualizacion=false, pollTimer=null, clockTimer=null, lastSignature=null;
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
   const tx=await r.text(); let j=null; try{j=tx?JSON.parse(tx):null}catch(e){j={message:tx}}
   if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
+}
+
+function getEstadoLocalMision(misionId){
+  if(!S || !S.ced) return null;
+  return (MISIONES_LOCAL[String(S.ced)] && MISIONES_LOCAL[String(S.ced)][String(misionId)]) || null;
+}
+function setEstadoLocalMision(misionId, estado){
+  if(!S || !S.ced) return;
+  const k = String(S.ced);
+  if(!MISIONES_LOCAL[k]) MISIONES_LOCAL[k] = {};
+  MISIONES_LOCAL[k][String(misionId)] = estado;
+  localStorage.setItem('misiones_estado_local', JSON.stringify(MISIONES_LOCAL));
 }
 
 async function loadExtras(){
@@ -366,7 +390,7 @@ function buildSignature(d, h){
   return `${upd}::${posts}::${pend}::${rk}`;
 }
 
-function checkChanges(prevD, newD, newH){
+function checkChanges(prevD, newD){
   if(!prevD) return;
   if(!S.a){
     const oldMap = {};
@@ -410,6 +434,15 @@ function startPolling(){
   }, 30000);
 }
 
+function startClockTick(){
+  if(clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(()=>{
+    document.querySelectorAll('[data-deadline]').forEach(el=>{
+      el.textContent = '⏳ ' + tiempoRestante(el.getAttribute('data-deadline'));
+    });
+  }, 30000);
+}
+
 async function load(){
   const prevD = D;
   try{
@@ -422,16 +455,18 @@ async function load(){
       try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}
     }
     await loadExtras();
-    checkChanges(prevD, D, H);
+    checkChanges(prevD, D);
     lastSignature = buildSignature(D, H);
     hayActualizacion = false;
     sessionStorage.setItem('s',JSON.stringify(S));
     draw();
     startPolling();
+    startClockTick();
   }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
 }
 function login(err=''){
   if(pollTimer) clearInterval(pollTimer);
+  if(clockTimer) clearInterval(clockTimer);
   popHide();app.className='';app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
   <p class="mute">Ingresa con tu cédula y tu clave.</p>
   <label>Cédula<input id="c" inputmode="numeric" autocomplete="username"></label>
@@ -441,7 +476,7 @@ function login(err=''){
   $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
-function out(){if(pollTimer)clearInterval(pollTimer);S=null;D=null;lastSignature=null;sessionStorage.removeItem('s');login()}
+function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);S=null;D=null;lastSignature=null;sessionStorage.removeItem('s');login()}
 function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
 
 // ---------- Vista de la persona ----------
@@ -457,6 +492,15 @@ function updTxt(){
   if(!f&&!h)return '<div class="upd"><span>🕒 Aún no hay información cargada.</span></div>';
   return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="load()">Recargar</button></div>`;
 }
+
+function getMisionesVisiblesUsuario(){
+  return (MISIONES || []).map(m => {
+    const loc = getEstadoLocalMision(m.id);
+    const est = m.completada ? 'aprobada' : (m.estado_usuario || loc || null);
+    return { ...m, _est: est };
+  }).filter(m => m._est !== 'omitida');
+}
+
 function drawUser(){
   const miEq = getEquipo(D.nombre, S.ced);
   const rkGlobal = D.ranking || [];
@@ -470,12 +514,13 @@ function drawUser(){
   const em = iAct===0?'🏆':iAct===1?'🥈':iAct===2?'🥉':'💪';
   const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
   const cantDias = (H && H.dias && H.dias.length) ? H.dias.length : 0;
+  const misionesVisibles = getMisionesVisiblesUsuario();
 
   const navUser = `<div class="tabs">
-    <button class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen e Incentivos</button>
+    <button class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen y Premios</button>
     <button class="${userTab==='dias'?'on':''}" onclick="userTab='dias';drawUser()">📅 Mi Día a Día (${cantDias})</button>
-    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones y Retos (${MISIONES.length})</button>
-    <button class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento (${NEGATIVOS.length})</button>
+    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones y Retos (${misionesVisibles.length})</button>
+    <button class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento</button>
   </div>`;
 
   let cuerpoUser = '';
@@ -484,7 +529,7 @@ function drawUser(){
       <div class="row">
         <div>
           <h2 style="margin:0">📅 Tu detalle día a día</h2>
-          <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, qué indicadores cumpliste y cómo comparaste con tu equipo.</p>
+          <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, el detalle de tus indicadores (promotores y detractores donde aplique) y tu comparación con el equipo.</p>
         </div>
         <button class="sec" onclick="userTab='resultados';drawUser()">← Volver al resumen</button>
       </div>
@@ -492,12 +537,12 @@ function drawUser(){
   }else if(userTab === 'misiones'){
     cuerpoUser = `<div class="card">
       <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
-      <p class="mute">Cuando completes una misión, márcala como completada para avisar al admin y enviar tu evidencia.</p>
+      <p class="mute">Acepta las misiones que quieras realizar (con tiempo restante en vivo), u omite las que no desees hacer.</p>
     </div>` + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
-      <h2 style="margin-top:0">⚠️ Tablero de Mal Comportamiento (Anónimo · 1 pt)</h2>
-      <p class="mute">Cada reporte registra <b>1 punto negativo informativo</b> de forma <b>anónima</b> y no resta puntos del ranking.</p>
+      <h2 style="margin-top:0">⚠️ Tablero General de Mal Comportamiento</h2>
+      <p class="mute">Vista general de todas las personas y sus puntos negativos informativos (<b>1 pt</b> por reporte · <b>no resta puntos</b> del ranking). El envío de reportes es anónimo.</p>
     </div>` + seccionNegativosUsuario(miEq);
   }else{
     cuerpoUser = `
@@ -516,13 +561,13 @@ function drawUser(){
     <section>
     ${compet(rkActivo,iAct,pts)}
     ${mision()}
-    <h2 class="shd">✨ Incentivos y premios <span class="tag">${D.incentivos.length}</span></h2>
+    <h2 class="shd">✨ Premios a conseguir <span class="tag">${D.incentivos.length}</span></h2>
     ${incCards(pts)}
     <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
     <div class="card row" style="margin-top:14px">
       <div>
         <b>📅 ¿Quieres ver tu historial detallado día por día?</b>
-        <div class="mute">Consulta cada fecha por separado con tus indicadores y puntos ganados.</div>
+        <div class="mute">Consulta cada fecha con el detalle de tus indicadores, promotores y detractores.</div>
       </div>
       <button class="sec" onclick="userTab='dias';drawUser()">Abrir Mi Día a Día (${cantDias})</button>
     </div>
@@ -561,65 +606,123 @@ function drawUser(){
   ${cuerpoUser}`;
 }
 
-// ---------- Misiones y Retos (Usuario) ----------
+// ---------- Misiones y Retos (Usuario: Aceptar, Tiempo restante en vivo, Omitir, Completar) ----------
 function tiempoRestante(fechaLimite){
-  if(!fechaLimite) return 'Sin límite definido';
+  if(!fechaLimite) return 'Sin límite de tiempo';
   const diff = new Date(fechaLimite) - new Date();
   if(diff <= 0) return 'Tiempo finalizado';
   const hrs = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
-  if(hrs >= 24) return `Disponible por ${Math.floor(hrs/24)}d ${hrs%24}h`;
-  return `Disponible por ${hrs}h ${mins}m`;
+  if(hrs >= 24) return `Quedan ${Math.floor(hrs/24)}d ${hrs%24}h ${mins}m`;
+  return `Quedan ${hrs}h ${mins}m`;
 }
+
 function seccionRetosUsuario(){
-  if(!MISIONES || !MISIONES.length) return '<div class="card"><p class="mute" style="margin:0">No hay misiones activas en este momento.</p></div>';
-  return MISIONES.map(m => {
+  const lista = getMisionesVisiblesUsuario();
+  if(!lista.length) return '<div class="card"><p class="mute" style="margin:0">No hay misiones activas o pendientes por mostrar en este momento.</p></div>';
+
+  return lista.map(m => {
     const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
-    const completada = !!m.completada;
-    const pendienteVal = !completada && m.estado_usuario === 'pendiente';
-    return `<div class="card reto-card ${completada?'done':''}">
+    const completada = m._est === 'aprobada' || !!m.completada;
+    const pendienteVal = !completada && m._est === 'pendiente';
+    const aceptada = !completada && !pendienteVal && m._est === 'aceptada';
+    const cardCls = completada ? 'done' : aceptada ? 'accepted' : '';
+
+    return `<div class="card reto-card ${cardCls}">
       <div class="row">
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
-          <span class="tag ${completada?'aprobada':pendienteVal?'pendiente':''}" style="margin-left:6px">+${m.puntos} pts</span>
+          <span class="tag ${completada?'aprobada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">+${m.puntos} pts</span>
+          ${aceptada ? '<span class="tag aceptada" style="margin-left:4px">Misión aceptada</span>' : ''}
         </div>
-        <span class="mute" style="font-size:.82rem">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
+        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
-        <b>📸 Evidencia:</b> Envía la foto o captura al jefe y marca abajo cuando la hayas completado para que te validen los puntos.
+        <b>📸 Evidencia:</b> Si la cumples, envía la foto/captura al jefe y marca que la completaste para validar tus puntos.
       </div>
-      <div class="row" style="margin-top:8px">
+      <div style="margin-top:8px">
         ${completada
-          ? `<span class="ok">✔ ¡Misión validada y completada!</span>
-             <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>`
+          ? `<div class="row">
+               <span class="ok">✔ ¡Misión validada y completada!</span>
+               <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>
+             </div>`
           : pendienteVal
-            ? `<span class="tag pendiente">⏳ Marcada como completada · Esperando validación del admin</span>`
+            ? `<span class="tag pendiente">⏳ Completada · Esperando validación del admin</span>`
             : exp
-              ? `<span class="mute">Esta misión ya expiró.</span>`
-              : `<div style="width:100%">
-                   <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
-                   <button onclick="marcarMisionCompletada(${m.id})">✔ Marcar como completada y pedir validación</button>
-                 </div>`
+              ? `<span class="mute">El tiempo para esta misión finalizó.</span>`
+              : aceptada
+                ? `<div>
+                     <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
+                     <div class="row" style="gap:8px">
+                       <button onclick="marcarMisionCompletada(${m.id})">✔ Marcar como completada</button>
+                       <button class="sec" onclick="omitirMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">Omitir misión</button>
+                     </div>
+                   </div>`
+                : `<div class="row" style="gap:8px">
+                     <button onclick="aceptarMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">✋ Aceptar misión o reto</button>
+                     <button class="sec" onclick="omitirMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">Omitir</button>
+                   </div>`
         }
       </div>
     </div>`;
   }).join('');
 }
 
-async function marcarMisionCompletada(misionId){
-  const elNota = $('#ev-nota-' + misionId);
-  const nota = elNota ? elNota.value.trim() : '';
+async function aceptarMision(misionId, titulo){
+  setEstadoLocalMision(misionId, 'aceptada');
+  notify('✋ ¡Misión aceptada!', `Aceptaste "${titulo}". Revisa el tiempo restante para completarla.`, 'success');
   try{
-    await rpc('solicitar_mision', {
+    await rpc('responder_mision', {
       p_ced: S.ced,
       p_clave: S.clave,
       p_mision_id: misionId,
+      p_accion: 'aceptar',
+      p_nota: ''
+    });
+  }catch(e){}
+  drawUser();
+}
+
+async function omitirMision(misionId, titulo){
+  setEstadoLocalMision(misionId, 'omitida');
+  notify('⏭️ Misión omitida', `Omitiste "${titulo}". No aparecerá en tu lista activa.`, 'info');
+  try{
+    await rpc('responder_mision', {
+      p_ced: S.ced,
+      p_clave: S.clave,
+      p_mision_id: misionId,
+      p_accion: 'omitir',
+      p_nota: ''
+    });
+  }catch(e){}
+  drawUser();
+}
+
+async function marcarMisionCompletada(misionId){
+  const elNota = $('#ev-nota-' + misionId);
+  const nota = elNota ? elNota.value.trim() : '';
+  setEstadoLocalMision(misionId, 'pendiente');
+  try{
+    await rpc('responder_mision', {
+      p_ced: S.ced,
+      p_clave: S.clave,
+      p_mision_id: misionId,
+      p_accion: 'solicitar',
       p_nota: nota
     });
-    notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos.', 'success');
-    await load();
-  }catch(e){ alert(e.message); }
+  }catch(e){
+    try{
+      await rpc('solicitar_mision', {
+        p_ced: S.ced,
+        p_clave: S.clave,
+        p_mision_id: misionId,
+        p_nota: nota
+      });
+    }catch(err){}
+  }
+  notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos.', 'success');
+  await load();
 }
 
 async function copiarImagenLogro(tituloMision, puntos){
@@ -683,20 +786,52 @@ async function copiarImagenLogro(tituloMision, puntos){
   }
 }
 
-// ---------- Tablero de Mal Comportamiento (Anónimo · Solo 1 punto · No resta puntos) ----------
+// ---------- Tablero General de Mal Comportamiento (Todos · 1 punto · No resta puntos) ----------
+function construirTableroGeneralConducta(filtroEq='global'){
+  const personas = (D && D.ranking) ? D.ranking : [];
+  const filtradas = filtroEq==='global'
+    ? personas
+    : personas.filter(p => getEquipo(p.nombre, p.cedula) === filtroEq);
+
+  const conteoPorNombre = {};
+  (NEGATIVOS || []).forEach(n => {
+    const key = norm(n.reportado_nombre);
+    conteoPorNombre[key] = (conteoPorNombre[key] || 0) + 1;
+  });
+
+  return `<div class="board-grid">` + filtradas.map(p => {
+    const k = norm(p.nombre);
+    const ptsNeg = conteoPorNombre[k] || 0;
+    const cls = ptsNeg > 0 ? 'has-neg' : 'zero';
+    return `<div class="board-tile ${cls}">
+      <div class="row">
+        <b>${esc(corto(p.nombre))}${p.yo?' (tú)':''}</b>
+        ${equipoLabel(getEquipo(p.nombre, p.cedula))}
+      </div>
+      <div class="pts-num">${ptsNeg} ${ptsNeg===1?'pt':'pts'}</div>
+      <div class="mute" style="font-size:.82rem">${ptsNeg>0 ? `${ptsNeg} ${ptsNeg===1?'reporte registrado':'reportes registrados'} · No resta ranking` : 'Sin puntos negativos · No resta ranking'}</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
 function seccionNegativosUsuario(miEq){
   const todos = D.ranking || [];
   const filtrados = vistaNeg === 'global'
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === miEq);
 
-  const conteo = {};
-  filtrados.forEach(n => {
-    conteo[n.reportado_nombre] = (conteo[n.reportado_nombre] || 0) + 1;
-  });
+  return `<div class="row" style="margin:6px 0 10px">
+    <h3 style="margin:0">📋 Tablero general (${vistaNeg==='global'?'Toda la operación':'Tu equipo'})</h3>
+    <div class="seg-switch" style="margin:0">
+      <button class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Todos (${todos.length})</button>
+      <button class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
+    </div>
+  </div>
+  ${construirTableroGeneralConducta(vistaNeg==='global'?'global':miEq)}
 
-  return `<div class="card neg-card">
-    <p class="mute" style="margin-top:0">Envío <b>100% anónimo</b>. Cada registro suma <b>1 punto negativo</b> informativo por mal lenguaje, grosería o comportamiento errado y <b>no resta puntos</b> del ranking.</p>
+  <div class="card neg-card">
+    <h3 style="margin-bottom:4px">Registrar reporte anónimo (1 pt informativo)</h3>
+    <p class="mute" style="margin-top:0">Envío <b>100% anónimo</b>. Cada registro añade <b>1 punto negativo</b> en el tablero y <b>no resta puntos</b> del ranking.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div>
         <label style="font-size:.85rem">Persona</label>
@@ -718,17 +853,10 @@ function seccionNegativosUsuario(miEq){
     <button class="coral" onclick="reportarNegativo(false)">Enviar reporte anónimo (1 pt)</button>
   </div>
 
-  <div class="row" style="margin:12px 0 8px">
-    <b>Tablero de conducta (${vistaNeg==='global'?'Global Operación':'Mi Equipo'})</b>
-    <div class="seg-switch" style="margin:0">
-      <button class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
-      <button class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Global</button>
-    </div>
-  </div>
-  ${Object.keys(conteo).length ? `<div class="card" style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(conteo).sort((a,b)=>b[1]-a[1]).map(([nom,cnt])=>`<span class="neg-badge">${esc(corto(nom))}: ${cnt} ${cnt===1?'pt':'pts'}</span>`).join('')}</div></div>` : ''}
+  <h3 style="margin:18px 0 8px">Detalle de registros (${filtrados.length})</h3>
   ${filtrados.length
     ? filtrados.map(n=>`<div class="card" style="padding:12px"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span></span><span class="tag">${esc(n.tipo)}</span></div><p style="margin:6px 0 2px">${esc(n.motivo)}</p><span class="mute" style="font-size:.8rem">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('')
-    : '<p class="mute">Sin registros en esta vista.</p>'
+    : '<p class="mute">Sin registros detallados en esta vista.</p>'
   }`;
 }
 
@@ -767,17 +895,43 @@ function podio(rk){
   const t=[rk[1],rk[0],rk[2]],pos=[2,1,3];
   return `<div class="podio">${t.map((x,k)=>`<div class="c p${pos[k]} ${x.yo?'yo':''}"><div class="nm">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bl">${['🥈','🥇','🥉'][k]}<small>${x.puntos} pts</small></div></div>`).join('')}</div>`;
 }
+
+// ---------- Detalle de Indicador en Día a Día (Promotores / Detractores adaptado al usuario) ----------
+function renderDetalleIndicadorDia(ind){
+  const nLower = norm(ind.nombre);
+  const esNpsOrCsat = nLower.includes('nps') || nLower.includes('csat');
+  const pro = ind.promotores ?? ind.promotor ?? ind.positivos ?? null;
+  const det = ind.detractores ?? ind.detractor ?? ind.negativos ?? null;
+  const neu = ind.neutros ?? ind.neutro ?? null;
+  const detTexto = ind.detalle || ind.observacion || ind.nota || null;
+
+  const pills = [];
+  if(pro !== null && pro !== undefined) pills.push(`<span class="pill-ind pro">👍 Promotores: <b>${esc(pro)}</b></span>`);
+  if(det !== null && det !== undefined) pills.push(`<span class="pill-ind det">👎 Detractores: <b>${esc(det)}</b></span>`);
+  if(neu !== null && neu !== undefined) pills.push(`<span class="pill-ind">😐 Neutros: <b>${esc(neu)}</b></span>`);
+  if(detTexto) pills.push(`<span class="pill-ind">${esc(detTexto)}</span>`);
+
+  if(!pills.length && esNpsOrCsat){
+    pills.push(`<span class="pill-ind">Sin desglose de promotores/detractores cargado en este día</span>`);
+  }
+  return pills.length ? `<div class="ind-meta">${pills.join('')}</div>` : '';
+}
+
 function dias(){
   const d=(H&&H.dias)||[];
   if(!d.length) return '<div class="card"><p class="mute" style="margin:0">Aún no hay resultados diarios cargados este mes.</p></div>';
-  return d.map(x=>{const f=new Date(x.fecha+'T12:00:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'}),n=x.indicadores.length,c=x.indicadores.filter(i=>i.cumplido).length,pf=n>0&&c===n,
-  eq=x.eq_total?Math.round(x.eq_ok/x.eq_total*100):null,yo=n?Math.round(c/n*100):0,st=x.estrellas||[];
-  return `<div class="card dia ${pf?'perf':''}"><div class="cab"><span><b>${esc(f)}</b><br><span class="big">${c}<small> de ${n} indicadores</small></span></span><span class="tot">+${x.puntos} pts${pf?'<br><span class="tag aprobada">⭐ Día perfecto</span>':''}</span></div>`
-  +`<div class="seg" aria-hidden="true">${x.indicadores.map(i=>`<i class="${i.cumplido?'s':''}"></i>`).join('')}</div>`
-  +(eq!=null?`<div class="cmp">Tú: ${yo}% · Equipo: ${eq}% ${yo>eq?'— por encima del equipo 👏':yo===eq?'— al ritmo del equipo':'— el equipo te saca ventaja, ¡mañana se recupera!'}</div>`:'')
-  +x.indicadores.map(i=>`<div class="it"><span>${esc(i.nombre)}</span><span class="${i.cumplido?'si':'no'}">${i.cumplido?'✔ Cumplió · +'+i.puntos+' pts':'✘ No cumplió · 0 pts'}</span></div>`).join('')
-  +(st.length?`<div class="star">⭐ Día perfecto de: ${st.map(n=>n===D.nombre?'<b>tú</b>':esc(n)).join(', ')}</div>`:'')+'</div>'}).join('');
+  return d.map(x=>{
+    const f=new Date(x.fecha+'T12:00:00').toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
+    const n=x.indicadores.length,c=x.indicadores.filter(i=>i.cumplido).length,pf=n>0&&c===n;
+    const eq=x.eq_total?Math.round(x.eq_ok/x.eq_total*100):null,yo=n?Math.round(c/n*100):0,st=x.estrellas||[];
+    return `<div class="card dia ${pf?'perf':''}"><div class="cab"><span><b>${esc(f)}</b><br><span class="big">${c}<small> de ${n} indicadores</small></span></span><span class="tot">+${x.puntos} pts${pf?'<br><span class="tag aprobada">⭐ Día perfecto</span>':''}</span></div>`
+    +`<div class="seg" aria-hidden="true">${x.indicadores.map(i=>`<i class="${i.cumplido?'s':''}"></i>`).join('')}</div>`
+    +(eq!=null?`<div class="cmp">Tú: ${yo}% · Equipo: ${eq}% ${yo>eq?'— por encima del equipo 👏':yo===eq?'— al ritmo del equipo':'— el equipo te saca ventaja, ¡mañana se recupera!'}</div>`:'')
+    +x.indicadores.map(i=>`<div class="it"><div><span><b>${esc(i.nombre)}</b></span>${renderDetalleIndicadorDia(i)}</div><span class="${i.cumplido?'si':'no'}">${i.cumplido?'✔ Cumplió · +'+i.puntos+' pts':'✘ No cumplió · 0 pts'}</span></div>`).join('')
+    +(st.length?`<div class="star">⭐ Día perfecto de: ${st.map(n=>n===D.nombre?'<b>tú</b>':esc(n)).join(', ')}</div>`:'')+'</div>';
+  }).join('');
 }
+
 async function postular(){
   const t=$('#t').value.trim(), c=$('#nc').value.trim();
   if(!c){alert('Debes escribir el número de caso');return} if(!t){alert('Describe la atención');return}
@@ -915,8 +1069,8 @@ function drawAdmin(){
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
-    <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (1 cumplió, 0 no cumplió).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
-    <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
+    <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (opcionales: <code>,promotores,detractores</code>).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
+    <textarea id="lt" rows="8" placeholder="1012345678,NPS,1,4,0"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
   per:()=>`<div class="card">
     <h3 style="margin-bottom:8px">${editUsrCed ? 'Editar persona (Cédula ' + esc(editUsrCed) + ')' : 'Agregar o actualizar persona'}</h3>
     <input id="uc" placeholder="Cédula">
@@ -956,12 +1110,12 @@ function drawAdmin(){
     </div>
   </div>`).join(''),
   inc:()=>`<div class="card">
-    <h3 style="margin-bottom:8px">${editIncId ? 'Editar incentivo #' + editIncId : 'Nuevo incentivo'}</h3>
+    <h3 style="margin-bottom:8px">${editIncId ? 'Editar premio #' + editIncId : 'Nuevo premio a conseguir'}</h3>
     <p class="mute">Mes actual (${esc(D.mes)}).</p>
     <input id="xn" placeholder="Nombre">
     <input id="xp" placeholder="Premio">
     <input id="xm" type="number" placeholder="Meta de puntos">
-    <button onclick="guardarInc()">${editIncId ? 'Actualizar incentivo' : 'Crear incentivo'}</button>
+    <button onclick="guardarInc()">${editIncId ? 'Actualizar premio' : 'Crear premio'}</button>
     ${editIncId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
   </div>`
   +D.incentivos.map(i=>`<div class="card row">
@@ -1044,7 +1198,7 @@ function adminMisionesView(){
         <div><b>${esc(m.titulo)}</b> <span class="tag aprobada">+${m.puntos} pts</span></div>
         <button class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
       </div>
-      <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · ⏳ ${esc(tiempoRestante(m.fecha_limite))}</p>
+      <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
         <label style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
@@ -1084,13 +1238,23 @@ async function aprobarMisionDirecto(misionId, ced, aprobar){
   }
 }
 
-// ---------- Admin: Tablero Anónimo de Conducta (Solo 1 punto) ----------
+// ---------- Admin: Tablero General y Registro de Conducta (Solo 1 punto) ----------
 function adminNegativosView(){
   const filtrados = adminFiltroEq==='global'
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === adminFiltroEq);
 
-  return `<div class="card neg-card">
+  return `<div class="row" style="margin:6px 0 10px">
+    <h2 style="margin:0">📋 Tablero general de mal comportamiento (${adminFiltroEq==='global'?'Global':adminFiltroEq.toUpperCase()})</h2>
+    <div class="seg-switch" style="margin:0">
+      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+    </div>
+  </div>
+  ${construirTableroGeneralConducta(adminFiltroEq)}
+
+  <div class="card neg-card">
     <h3 style="margin-bottom:6px">Registrar alerta anónima de conducta (1 pt · No resta puntos)</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select>
@@ -1102,14 +1266,6 @@ function adminNegativosView(){
     </div>
     <input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
     <button class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
-  </div>
-  <div class="row" style="margin:12px 0">
-    <b>Tablero de conducta registrado</b>
-    <div class="seg-switch" style="margin:0">
-      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
-    </div>
   </div>
   ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span> <span class="tag">${esc(n.tipo)}</span></span><button class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
 }
@@ -1198,21 +1354,21 @@ function mision(){
   <div class="btns"><button onclick="popPost()">✨ Postular una atención</button><button class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
 }
 function incCards(pts){
-  const inc=D.incentivos.slice().sort((a,b)=>a.meta-b.meta),pd=perfectDay(),r=ritmo(),nx=inc.find(n=>pts<n.meta);
-  if(!inc.length)return '<p class="mute">Aún no hay incentivos definidos para este mes.</p>';
+  const inc=D.incentivos.slice().sort((a,b)=>a.meta-b.meta),pd=perfectDay(),r=ritmo();
+  if(!inc.length)return '<p class="mute">Aún no hay premios a conseguir definidos para este mes.</p>';
   return inc.map(n=>{
-    const pct=Math.min(100,Math.round(pts/n.meta*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80,prox=n===nx&&!cerca;
-    const rb=ok?'¡LOGRADO! 🎉':cerca?'¡CASI LO TIENES! 🔥':prox?'TU PRÓXIMO PREMIO':'PREMIO ACTIVO ✨';
+    const pct=Math.min(100,Math.round(pts/n.meta*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80;
+    const rb=ok?'¡META ALCANZADA! 🏆':cerca?'¡CASI LO TIENES! 🔥':'PREMIO A CONSEGUIR ✨';
     let how='';
     if(!ok&&pd){
       const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-PTS_INCREIBLE)/pd),pl=k=>k===1?'':'s';
-      how=`<div class="how"><b>🧭 ¿Cómo lo logro?</b><ul>`
+      how=`<div class="how"><b>🧭 ¿Cómo lo puedes conseguir?</b><ul>`
       +(falta<=PTS_INCREIBLE?`<li>¡Una sola <b>atención increíble aprobada</b> (+${PTS_INCREIBLE} pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+${PTS_INCREIBLE}) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
-      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) llegarías en unos <b>${dd(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
+      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) alcanzarías la meta en unos <b>${dd(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
     }
-    return `<div class="card inc ${ok?'lg':cerca?'cerca':prox?'prox':''}"><span class="rb">${rb}</span>
+    return `<div class="card inc ${ok?'lg':cerca?'cerca':''}"><span class="rb">${rb}</span>
     <div class="pr"><span class="gift">${ok?'🏆':'🎁'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · meta ${n.meta} pts</span></div></div>
-    <div class="nums"><div>${ok?'<span class="big">¡Meta cumplida!</span>':`<span class="big">${falta}</span> <span class="mute">pts para ganarlo</span>`}</div><b>${pct}%</b></div>
+    <div class="nums"><div>${ok?'<span class="big">¡Meta alcanzada!</span>':`<span class="big">${falta}</span> <span class="mute">pts para alcanzarlo</span>`}</div><b>${pct}%</b></div>
     <div class="track ${ok?'ok':''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
     <span class="mute">Llevas ${pts} de ${n.meta} puntos${ok?'. ¡Felicitaciones!':''}</span>${how}</div>`;
   }).join('');
@@ -1255,7 +1411,13 @@ async function lote(){
   const dup=F&&F.fechas.find(x=>x.fecha===$('#fe').value);
   if(dup&&!confirm(fdl(dup.fecha)+' ya tiene '+dup.registros+' registros cargados. ¿Quieres reemplazarlos con estos?'))return;
   const datos=$('#lt').value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(a=>a.length>=3)
-    .map(a=>({cedula:a[0],indicador:a[1],cumplido:a[2]==='1'}));
+    .map(a=>({
+      cedula:a[0],
+      indicador:a[1],
+      cumplido:a[2]==='1',
+      promotores:a[3]!==undefined && a[3]!=='' ? +a[3] : null,
+      detractores:a[4]!==undefined && a[4]!=='' ? +a[4] : null
+    }));
   try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await load();tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
 }
 S?load():login();
