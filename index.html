@@ -10,7 +10,7 @@
 @media(prefers-color-scheme:dark){:root{--bg:#0c1a29;--card:#12263a;--ink:#e8eef5;--mute:#93a7ba;--line:#24405a}}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'Bricolage Grotesque',system-ui,sans-serif;padding:18px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'Bricolage+Grotesque',system-ui,sans-serif;padding:18px}
 main{max-width:780px;margin:0 auto;position:relative;z-index:1}
 main.wide{max-width:1180px}
 h1,h2,h3{margin:0;line-height:1.18}
@@ -54,7 +54,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .bell-btn{position:relative;background:var(--card);color:var(--ink);border:1px solid var(--line);padding:9px 13px;border-radius:10px;display:inline-flex;align-items:center;gap:6px}
 .bell-btn.has-alert{border-color:var(--gold);background:linear-gradient(135deg,rgba(244,196,78,.22),var(--card));box-shadow:0 0 0 2px rgba(224,165,38,.22)}
 .bell-badge{background:var(--coral);color:#fff;font-size:.75rem;font-weight:800;padding:1px 7px;border-radius:999px;line-height:1.3}
-.bell-pop{position:absolute;right:0;top:calc(100% + 8px);width:min(440px,92vw);max-height:75vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:14px;z-index:95}
+.bell-pop{position:absolute;right:0;top:calc(100% + 8px);width:min(460px,94vw);max-height:78vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);padding:14px;z-index:95}
 .bell-sec{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .bell-sec:first-of-type{margin-top:6px;padding-top:0;border-top:0}
 .bell-item{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:6px;font-size:.88rem}
@@ -241,6 +241,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .ev-box{background:rgba(214,84,63,.12);border:1px solid var(--coral);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.88rem;color:var(--ink)}
 .ev-box b{color:var(--coral)}
 .val-box{background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.3);border-radius:8px;padding:10px 12px;margin-top:10px}
+.sol-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
+.sol-who{font-size:1rem;font-weight:800;color:var(--ink)}
 .timer-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;background:var(--bg);border:1px solid var(--line);font-size:.82rem;font-weight:700}
 .chk-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;max-height:200px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;margin:6px 0 10px}
 .chk-item{display:flex;align-items:center;gap:8px;font-size:.88rem;cursor:pointer;margin:0}
@@ -286,6 +288,14 @@ function jsArg(val){
 function fmtDias(n){
   const num = Number(n) || 0;
   return num + (num === 1 ? ' día' : ' días');
+}
+function resolverDatosUsuario(cedula, nombreRaw=''){
+  const cedStr = String(cedula || '').trim();
+  const users = (D && Array.isArray(D.usuarios)) ? D.usuarios : [];
+  const uMatch = users.find(u => String(u.cedula || '').trim() === cedStr);
+  const nombreFinal = (uMatch && uMatch.nombre) || String(nombreRaw || '').trim() || (cedStr ? `Cédula ${cedStr}` : 'Usuario');
+  const cedulaFinal = cedStr || ((uMatch && uMatch.cedula) ? String(uMatch.cedula) : '');
+  return { cedula: cedulaFinal, nombre: nombreFinal };
 }
 function getEquipo(nombre, cedula=''){
   if(cedula && ASIGNACIONES_EQ['ced:' + String(cedula)]) return ASIGNACIONES_EQ['ced:' + String(cedula)];
@@ -344,11 +354,11 @@ function playTone(type='info'){
 }
 
 const recentNotifs = new Map();
-function notify(title, body, type='info', actionHtml='', dedupKey=''){
+function notify(title, body, type='info', actionHtml='', dedupKey='', minGapMs=12000){
   const key = dedupKey || `${title}::${body}`;
   const now = Date.now();
   const prev = recentNotifs.get(key) || 0;
-  if(now - prev < 4000) return;
+  if(now - prev < minGapMs) return;
   recentNotifs.set(key, now);
 
   playTone(type);
@@ -388,11 +398,12 @@ async function rpc(fn,body){
 
 function guardarPendienteLocalMision(misionId, cedula, nombre, nota='', solicitadaEn=null){
   const k = String(misionId);
+  const res = resolverDatosUsuario(cedula, nombre);
   if(!MISIONES_PENDIENTES_LOCAL[k]) MISIONES_PENDIENTES_LOCAL[k] = [];
-  const idx = MISIONES_PENDIENTES_LOCAL[k].findIndex(x => String(x.cedula) === String(cedula));
+  const idx = MISIONES_PENDIENTES_LOCAL[k].findIndex(x => String(x.cedula) === res.cedula);
   const entry = {
-    cedula: String(cedula),
-    nombre: String(nombre || 'Usuario'),
+    cedula: res.cedula,
+    nombre: res.nombre,
     nota: String(nota || ''),
     solicitada_en: solicitadaEn || new Date().toISOString()
   };
@@ -445,11 +456,20 @@ function enrichMisiones(rawList){
     const locPend = MISIONES_PENDIENTES_LOCAL[String(m.id)] || [];
     const completadosNorm = new Set((m.completados || []).map(c => norm(c)));
     const mapPend = new Map();
+
     [...remPend, ...locPend].forEach(pv => {
-      if(!pv || !pv.cedula) return;
-      if(completadosNorm.has(norm(pv.nombre))) return;
-      const cedStr = String(pv.cedula);
-      if(!mapPend.has(cedStr)) mapPend.set(cedStr, { ...pv, cedula: cedStr });
+      if(!pv) return;
+      const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+      if(!res.cedula && !pv.nombre) return;
+      if(completadosNorm.has(norm(res.nombre))) return;
+      const key = res.cedula || norm(res.nombre);
+      if(!mapPend.has(key)){
+        mapPend.set(key, {
+          ...pv,
+          cedula: res.cedula,
+          nombre: res.nombre
+        });
+      }
     });
 
     return {
@@ -507,10 +527,17 @@ function setValidacionLocalIncentivo(incId, ced, data){
 
 function getPendientesMisionesAdmin(){
   const list = [];
+  const seen = new Set();
   (MISIONES || []).forEach(m => {
     (m.pendientes_validacion || []).forEach(pv => {
+      const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+      const uniqueKey = `${m.id}::${res.cedula || norm(res.nombre)}`;
+      if(seen.has(uniqueKey)) return;
+      seen.add(uniqueKey);
       list.push({
         ...pv,
+        cedula: res.cedula,
+        nombre: res.nombre,
         mision_id: m.id,
         mision_titulo: m.titulo,
         mision_puntos: m.puntos,
@@ -630,27 +657,35 @@ function detectarYNotificarCambios(prevState, nextState){
     const prevPendIds = new Set(((prevState.D && prevState.D.pendientes) || []).map(p => String(p.id)));
     ((nextState.D && nextState.D.pendientes) || []).forEach(p => {
       if(!prevPendIds.has(String(p.id))){
+        const res = resolverDatosUsuario(p.cedula, p.nombre);
         notify(
-          '🌟 Nueva postulación enviada',
-          `${p.nombre} envió el caso ${p.caso || 'sin número'} para validar.`,
+          `🌟 Postulación de ${res.nombre}`,
+          `CC ${res.cedula || 'N/A'} · Caso ${p.caso || 'sin número'}.`,
           'alert',
           `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`,
-          `adm-post-${p.id}`
+          `adm-post-${p.id}`,
+          20000
         );
       }
     });
 
     const prevMisPend = new Set();
-    (prevState.misiones || []).forEach(m => (m.pendientes_validacion || []).forEach(pv => prevMisPend.add(`${m.id}:${pv.cedula}`)));
+    (prevState.misiones || []).forEach(m => (m.pendientes_validacion || []).forEach(pv => {
+      const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+      prevMisPend.add(`${m.id}:${res.cedula || norm(res.nombre)}`);
+    }));
     (nextState.misiones || []).forEach(m => {
       (m.pendientes_validacion || []).forEach(pv => {
-        if(!prevMisPend.has(`${m.id}:${pv.cedula}`)){
+        const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+        const key = `${m.id}:${res.cedula || norm(res.nombre)}`;
+        if(!prevMisPend.has(key)){
           notify(
-            '🚀 Reto marcado por ' + (pv.nombre || 'un usuario'),
-            `${pv.nombre || 'Un usuario'} (CC ${pv.cedula}) marcó "${m.titulo}" para validación del líder.`,
+            `🚀 Solicitud de ${res.nombre}`,
+            `CC ${res.cedula || 'N/A'} marcó "${m.titulo}" para validación del líder.`,
             'alert',
             `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
-            `adm-mis-${m.id}-${pv.cedula}`
+            `adm-mis-${m.id}-${res.cedula || norm(res.nombre)}`,
+            20000
           );
         }
       });
@@ -659,12 +694,14 @@ function detectarYNotificarCambios(prevState, nextState){
     const prevValPend = new Set((prevState.vals || []).filter(v => v.estado === 'pendiente').map(v => `${v.incentivo_id}:${v.cedula}`));
     (nextState.vals || []).filter(v => v.estado === 'pendiente').forEach(v => {
       if(!prevValPend.has(`${v.incentivo_id}:${v.cedula}`)){
+        const res = resolverDatosUsuario(v.cedula, v.nombre);
         notify(
-          '🎯 Corte de incentivo por validar',
-          `${v.nombre} solicitó validar el cierre de "${v.incentivo_nombre || 'Incentivo'}".`,
+          `🎯 Corte de ${res.nombre}`,
+          `CC ${res.cedula || 'N/A'} solicitó validar "${v.incentivo_nombre || 'Incentivo'}".`,
           'alert',
           `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
-          `adm-inc-${v.incentivo_id}-${v.cedula}`
+          `adm-inc-${v.incentivo_id}-${v.cedula}`,
+          20000
         );
       }
     });
@@ -728,7 +765,7 @@ function scheduleRealtimeSync(allowNotif=true){
     try{
       await syncState({ silent: false, allowNotif });
     }catch(e){}
-  }, 150);
+  }, 180);
 }
 
 function broadcastEvent(eventName, payload){
@@ -767,45 +804,49 @@ function setupRealtime(){
 
   rtChannel.on('broadcast', { event: 'postulacion_enviada' }, ({ payload }) => {
     if(!S || !S.a) return;
+    const res = resolverDatosUsuario(payload?.cedula, payload?.nombre);
     notify(
-      '🌟 Nueva postulación enviada',
-      `${payload?.nombre || 'Un usuario'} envió el caso ${payload?.caso || 'sin número'}.`,
+      `🌟 Postulación de ${res.nombre}`,
+      `CC ${res.cedula || 'N/A'} · Caso ${payload?.caso || 'sin número'}.`,
       'alert',
       `<button type="button" class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`,
-      `evt-post-${payload?.cedula || ''}-${payload?.caso || ''}`
+      `evt-post-${res.cedula}-${payload?.caso || ''}`,
+      20000
     );
     scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'reto_completado' }, ({ payload }) => {
     if(!S || !S.a) return;
-    const quien = payload?.nombre || 'Un usuario';
-    const ced = payload?.cedula || '';
+    const res = resolverDatosUsuario(payload?.cedula, payload?.nombre);
     const mId = payload?.mision_id;
     const mTit = payload?.mision_titulo || 'una misión';
-    if(mId && ced){
-      guardarPendienteLocalMision(mId, ced, quien, payload?.nota || '', payload?.solicitada_en || new Date().toISOString());
+    if(mId && res.cedula){
+      guardarPendienteLocalMision(mId, res.cedula, res.nombre, payload?.nota || '', payload?.solicitada_en || new Date().toISOString());
       MISIONES = enrichMisiones(MISIONES);
       drawAdmin();
     }
     notify(
-      `🚀 Reto marcado por ${quien}`,
-      `${quien}${ced ? ` (CC ${ced})` : ''} marcó "${mTit}" como completada para validación del líder.`,
+      `🚀 Solicitud de ${res.nombre}`,
+      `CC ${res.cedula || 'N/A'} marcó "${mTit}" para validación del líder.`,
       'alert',
       `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
-      `evt-reto-${ced}-${mId || ''}`
+      `evt-reto-${res.cedula}-${mId || ''}`,
+      20000
     );
     scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'corte_incentivo_enviado' }, ({ payload }) => {
     if(!S || !S.a) return;
+    const res = resolverDatosUsuario(payload?.cedula, payload?.nombre);
     notify(
-      '🎯 Cierre de incentivo enviado',
-      `${payload?.nombre || 'Un usuario'} solicitó validar "${payload?.incentivo || 'un incentivo'}".`,
+      `🎯 Corte de ${res.nombre}`,
+      `CC ${res.cedula || 'N/A'} solicitó validar "${payload?.incentivo || 'un incentivo'}".`,
       'alert',
       `<button type="button" class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`,
-      `evt-corte-${payload?.cedula || ''}-${payload?.incentivo || ''}`
+      `evt-corte-${res.cedula}-${payload?.incentivo || ''}`,
+      20000
     );
     scheduleRealtimeSync(false);
   });
@@ -1190,16 +1231,16 @@ async function omitirMision(misionId, titulo){
 async function marcarMisionCompletada(misionId, tituloMision='Misión'){
   const elNota = $('#ev-nota-' + misionId);
   const nota = elNota ? elNota.value.trim() : '';
-  const nombreEnvio = (D && D.nombre) ? D.nombre : ('Cédula ' + S.ced);
+  const res = resolverDatosUsuario(S.ced, D && D.nombre);
   const ahoraIso = new Date().toISOString();
 
   setEstadoLocalMision(misionId, 'pendiente');
-  guardarPendienteLocalMision(misionId, S.ced, nombreEnvio, nota, ahoraIso);
+  guardarPendienteLocalMision(misionId, res.cedula, res.nombre, nota, ahoraIso);
   MISIONES = enrichMisiones(MISIONES);
 
   broadcastEvent('reto_completado', {
-    cedula: S.ced,
-    nombre: nombreEnvio,
+    cedula: res.cedula,
+    nombre: res.nombre,
     mision_id: misionId,
     mision_titulo: tituloMision,
     nota,
@@ -1218,7 +1259,7 @@ async function marcarMisionCompletada(misionId, tituloMision='Misión'){
     }catch(err){}
   }
 
-  notify('🚀 Enviado a validación del líder', `Quedó registrado que ${nombreEnvio} marcó "${tituloMision}" como completada.`, 'success', '', `mis-env-${misionId}`);
+  notify('🚀 Enviado a validación del líder', `Quedó registrado que ${res.nombre} marcó "${tituloMision}" como completada.`, 'success', '', `mis-env-${misionId}`);
   await syncState({ silent: false, allowNotif: false });
 }
 
@@ -1437,7 +1478,8 @@ async function postular(){
   try{
     await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});
     msg='Postulación enviada';
-    broadcastEvent('postulacion_enviada', { cedula: S.ced, nombre: D.nombre, caso: c });
+    const res = resolverDatosUsuario(S.ced, D.nombre);
+    broadcastEvent('postulacion_enviada', { cedula: res.cedula, nombre: res.nombre, caso: c });
     notify('📨 Postulación enviada', `Tu caso ${c} fue enviado y notificado al admin al instante.`, 'success', '', `post-sent-${c}`);
     await syncState({ silent: false, allowNotif: false });
   }catch(e){alert(e.message)}
@@ -1544,11 +1586,12 @@ async function guardarInc(){
 async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
   const notaEl = $('#val-inc-nota-' + incId);
   const nota = notaEl ? notaEl.value.trim() : '';
-  setValidacionLocalIncentivo(incId, S.ced, {
+  const res = resolverDatosUsuario(S.ced, D.nombre);
+  setValidacionLocalIncentivo(incId, res.cedula, {
     estado: 'pendiente', nota_usuario: nota, solicitada_en: new Date().toISOString()
   });
   broadcastEvent('corte_incentivo_enviado', {
-    cedula: S.ced, nombre: D.nombre, incentivo: nombreInc, corte: corteTxt
+    cedula: res.cedula, nombre: res.nombre, incentivo: nombreInc, corte: corteTxt
   });
   try{
     await rpc('solicitar_validacion_incentivo', {
@@ -1562,19 +1605,20 @@ async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
 async function validarIncentivoLider(incId, ced, aprobar){
   const notaEl = $('#nota-lider-' + incId + '-' + ced);
   const notaLider = notaEl ? notaEl.value.trim() : '';
-  setValidacionLocalIncentivo(incId, ced, {
+  const res = resolverDatosUsuario(ced);
+  setValidacionLocalIncentivo(incId, res.cedula, {
     estado: aprobar ? 'aprobada' : 'rechazada', nota_lider: notaLider, resuelta_en: new Date().toISOString()
   });
   broadcastEvent('validacion_resuelta', {
-    cedula: ced, aprobada: aprobar,
+    cedula: res.cedula, aprobada: aprobar,
     mensaje: aprobar ? 'Tu cierre/corte de incentivo fue validado por el líder.' : (notaLider || 'El líder registró una observación en tu cierre/corte.')
   });
   try{
     await rpc('admin_validar_incentivo', {
-      p_admin: S.clave, p_incentivo_id: incId, p_ced: ced, p_aprobar: aprobar, p_nota_lider: notaLider
+      p_admin: S.clave, p_incentivo_id: incId, p_ced: res.cedula, p_aprobar: aprobar, p_nota_lider: notaLider
     });
   }catch(e){}
-  notify(aprobar ? '✔ Cierre/corte validado' : '↩ Validación rechazada', aprobar ? 'El usuario ya puede compartir su imagen de logro.' : 'Se registró la observación del líder.', aprobar ? 'success' : 'warn');
+  notify(aprobar ? '✔ Cierre/corte validado' : '↩ Validación rechazada', `${res.nombre} (CC ${res.cedula}) actualizado.`, aprobar ? 'success' : 'warn');
   await syncState({ silent: false, allowNotif: false });
 }
 
@@ -1636,8 +1680,9 @@ function adminIncentivosView(){
 
   const bandejaValidacion = `<div class="card" style="border-left:5px solid var(--purple)">
     <h3 style="margin-bottom:6px">🕵️ Validación de cierre o corte de indicador por líder (${pendientesVal.length} pendientes)</h3>
-    <p class="mute" style="margin-top:0">Cuando un incentivo es por <b>meta en indicador</b>, al cierre o corte el líder valida si se cumplió el indicador.</p>
+    <p class="mute" style="margin-top:0">Revisa específicamente quién solicitó validar su cierre o corte para aprobar o rechazar a esa persona.</p>
     ${pendientesVal.length ? pendientesVal.map(v => {
+      const res = resolverDatosUsuario(v.cedula, v.nombre);
       const incRaw = ((D && D.incentivos) || []).find(x => String(x.id) === String(v.incentivo_id));
       const inc = incRaw ? enrichIncentivo(incRaw) : {
         nombre: v.incentivo_nombre || 'Incentivo',
@@ -1649,23 +1694,23 @@ function adminIncentivosView(){
       return `<div class="val-box" style="margin-bottom:8px">
         <div class="row">
           <div>
-            <b>${esc(v.nombre)}</b> <span class="mute">(CC ${esc(v.cedula)})</span> ${equipoLabel(getEquipo(v.nombre, v.cedula))}
+            <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')})</span> ${equipoLabel(getEquipo(res.nombre, res.cedula))}</div>
             <div style="margin-top:3px">Incentivo: <b>${esc(inc.nombre)}</b> · Premio: <b>${esc(inc.premio)}</b></div>
             <div class="mute">Indicador: <b>${esc(inc.indicador_nombre)}</b> · Meta: <b>${esc(inc.meta_indicador)}</b> · Corte/Cierre: <b>${esc(inc.corte_indicador)}</b></div>
-            ${v.nota_usuario ? `<div style="margin-top:4px;font-size:.88rem">Nota del usuario: "${esc(v.nota_usuario)}"</div>` : ''}
+            ${v.nota_usuario ? `<div style="margin-top:4px;font-size:.88rem">Nota enviada por ${esc(res.nombre)}: "${esc(v.nota_usuario)}"</div>` : ''}
           </div>
         </div>
         <div style="margin-top:8px">
-          <label for="nota-lider-${v.incentivo_id}-${esc(v.cedula)}" style="font-size:.85rem">Observación del líder</label>
-          <input id="nota-lider-${v.incentivo_id}-${esc(v.cedula)}" placeholder="Observación o validación del líder (opcional)">
+          <label for="nota-lider-${v.incentivo_id}-${esc(res.cedula)}" style="font-size:.85rem">Observación del líder para ${esc(res.nombre)}</label>
+          <input id="nota-lider-${v.incentivo_id}-${esc(res.cedula)}" placeholder="Observación o validación del líder (opcional)">
           <div class="row" style="gap:6px">
-            <button type="button" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, true)'>✔ Validar cierre / corte</button>
-            <button type="button" class="sec" style="color:var(--coral)" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, false)'>Rechazar</button>
+            <button type="button" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(res.cedula)}, true)'>✔ Aprobar cierre de ${esc(res.nombre)}</button>
+            <button type="button" class="sec" style="color:var(--coral)" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(res.cedula)}, false)'>Rechazar a ${esc(res.nombre)}</button>
           </div>
         </div>
       </div>`;
     }).join('') : '<p class="mute" style="margin:0">No hay cierres o cortes de indicador pendientes por validar.</p>'}
-    ${aprobadasVal.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)" class="mute"><b>Validados recientemente:</b> ${aprobadasVal.map(a => `${esc(a.nombre)} (${esc(a.incentivo_nombre || a.incentivo_id)})`).join(', ')}</div>` : ''}
+    ${aprobadasVal.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)" class="mute"><b>Validados recientemente:</b> ${aprobadasVal.map(a => { const r = resolverDatosUsuario(a.cedula, a.nombre); return `${esc(r.nombre)} (${esc(a.incentivo_nombre || a.incentivo_id)})`; }).join(', ')}</div>` : ''}
   </div>`;
 
   return `${bandejaValidacion}
@@ -1752,26 +1797,27 @@ function campanaAdminHtml(){
     </button>
     ${bellOpen ? `<div class="bell-pop" role="region" aria-label="Bandeja de validaciones pendientes">
       <div class="row">
-        <b>🔔 Pendientes por validar (${total})</b>
+        <b>🔔 Solicitudes por validar (${total})</b>
         <button type="button" class="sec" style="padding:2px 8px;font-size:.8rem" onclick="bellOpen=false;drawAdmin()">Cerrar</button>
       </div>
 
       <div class="bell-sec">
         <div class="row">
-          <b>🚀 Marcados por validar (${pendMis.length})</b>
+          <b>🚀 Misiones enviadas por validar (${pendMis.length})</b>
           <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver sección</button>
         </div>
-        ${pendMis.length ? pendMis.map(item => `
-          <div class="bell-item">
-            <div><b>${esc(item.nombre)}</b> <span class="mute">(CC ${esc(item.cedula)})</span> ${equipoLabel(getEquipo(item.nombre, item.cedula))}</div>
-            <div style="margin-top:3px">Marcó: <b>${esc(item.mision_titulo)}</b> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
+        ${pendMis.length ? pendMis.map(item => {
+          const res = resolverDatosUsuario(item.cedula, item.nombre);
+          return `<div class="bell-item">
+            <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')})</span> ${equipoLabel(getEquipo(res.nombre, res.cedula))}</div>
+            <div style="margin-top:3px">Misión: <b>${esc(item.mision_titulo)}</b> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
             ${item.nota ? `<div class="mute" style="font-size:.8rem;margin-top:2px">Evidencia: ${esc(item.nota)}</div>` : ''}
-            <div style="display:flex;gap:6px;margin-top:6px">
-              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Aprobar</button>
-              <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
+            <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+              <button type="button" style="padding:5px 10px;font-size:.8rem" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, true, ${jsArg(res.nombre)})'>✔ Aprobar a ${esc(corto(res.nombre))}</button>
+              <button type="button" class="sec" style="padding:5px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, false, ${jsArg(res.nombre)})'>Rechazar a ${esc(corto(res.nombre))}</button>
             </div>
-          </div>
-        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin retos marcados por validar.</div>'}
+          </div>`;
+        }).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin misiones enviadas por validar.</div>'}
       </div>
 
       <div class="bell-sec">
@@ -1779,15 +1825,16 @@ function campanaAdminHtml(){
           <b>🌟 Postulaciones de atención (${pendPost.length})</b>
           <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('post')">Ir a Postulaciones</button>
         </div>
-        ${pendPost.length ? pendPost.map(p => `
-          <div class="bell-item">
-            <div><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span></div>
+        ${pendPost.length ? pendPost.map(p => {
+          const res = resolverDatosUsuario(p.cedula, p.nombre);
+          return `<div class="bell-item">
+            <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')}) · Caso ${esc(p.caso||'sin número')}</span></div>
             <div style="margin-top:3px">${esc(p.descripcion)}</div>
             <div style="margin-top:6px">
-              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick="irATabValidacion('post')">Evaluar postulación</button>
+              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick="irATabValidacion('post')">Evaluar postulación de ${esc(corto(res.nombre))}</button>
             </div>
-          </div>
-        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin postulaciones pendientes.</div>'}
+          </div>`;
+        }).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin postulaciones pendientes.</div>'}
       </div>
 
       <div class="bell-sec">
@@ -1795,15 +1842,16 @@ function campanaAdminHtml(){
           <b>🎯 Cortes / Cierres de incentivo (${pendInc.length})</b>
           <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('inc')">Ver Incentivos</button>
         </div>
-        ${pendInc.length ? pendInc.map(v => `
-          <div class="bell-item">
-            <div><b>${esc(v.nombre)}</b> <span class="mute">· ${esc(v.incentivo_nombre || 'Incentivo')} (${esc(v.corte_indicador || 'Cierre')})</span></div>
-            <div style="display:flex;gap:6px;margin-top:6px">
-              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, true)'>✔ Validar</button>
-              <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, false)'>Rechazar</button>
+        ${pendInc.length ? pendInc.map(v => {
+          const res = resolverDatosUsuario(v.cedula, v.nombre);
+          return `<div class="bell-item">
+            <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')}) · ${esc(v.incentivo_nombre || 'Incentivo')}</span></div>
+            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(res.cedula)}, true)'>✔ Aprobar a ${esc(corto(res.nombre))}</button>
+              <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(res.cedula)}, false)'>Rechazar a ${esc(corto(res.nombre))}</button>
             </div>
-          </div>
-        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin cortes de incentivo pendientes.</div>'}
+          </div>`;
+        }).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin cortes de incentivo pendientes.</div>'}
       </div>
     </div>` : ''}
   </div>`;
@@ -1836,10 +1884,13 @@ function drawAdmin(){
         <button type="button" class="gold" onclick="guardarPuntosIncreible()">Guardar puntos</button>
       </div>
     </div>
-    ${pendientesList.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
-    <label for="f${p.id}" style="font-size:.85rem">Feedback</label><input id="f${p.id}" placeholder="Feedback">
+    ${pendientesList.map(p=>{
+      const res = resolverDatosUsuario(p.cedula, p.nombre);
+      return `<div class="card"><div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')})</span> ${equipoLabel(getEquipo(res.nombre, res.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span></div><p>${esc(p.descripcion)}</p>
+    <label for="f${p.id}" style="font-size:.85rem">Feedback para ${esc(res.nombre)}</label><input id="f${p.id}" placeholder="Feedback">
     <label for="c${p.id}" style="font-size:.85rem">Compromiso de mejora</label><input id="c${p.id}" placeholder="Compromiso de mejora">
-    <button type="button" onclick='evaluar(${Number(p.id)}, true, ${jsArg(p.cedula||'')}, ${jsArg(p.caso||'')})'>Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button type="button" class="sec" onclick='evaluar(${Number(p.id)}, false, ${jsArg(p.cedula||'')}, ${jsArg(p.caso||'')})'>Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
+    <button type="button" onclick='evaluar(${Number(p.id)}, true, ${jsArg(res.cedula)}, ${jsArg(p.caso||'')})'>Aprobar a ${esc(corto(res.nombre))} (+${PTS_INCREIBLE} pts)</button> <button type="button" class="sec" onclick='evaluar(${Number(p.id)}, false, ${jsArg(res.cedula)}, ${jsArg(p.caso||'')})'>Enviar feedback a ${esc(corto(res.nombre))}</button></div>`;
+    }).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label for="fe">Fecha</label><input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"><p id="aw" class="err" style="min-height:0"></p>
@@ -1939,20 +1990,21 @@ function adminMisionesView(){
   const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
-    <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión o reto (${pendientesList.length} por validar)</h3>
-    <p class="mute" style="margin-top:0">Aquí ves quién envió a validación del líder cada misión o reto. Aprueba o rechaza para validar su cumplimiento.</p>
+    <h3 style="margin-bottom:6px">📥 Bandeja de solicitudes por persona (${pendientesList.length} enviadas a validación)</h3>
+    <p class="mute" style="margin-top:0">Cada fila identifica exactamente quién envió la solicitud para que puedas aprobar o rechazar a esa persona en específico.</p>
     ${pendientesList.length ? pendientesList.map(item => {
+      const res = resolverDatosUsuario(item.cedula, item.nombre);
       const fechaSol = item.solicitada_en ? new Date(item.solicitada_en).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="val-box row" style="margin-bottom:8px">
+      return `<div class="sol-row">
         <div>
-          <div><b>${esc(item.nombre)}</b> <span class="mute">(CC ${esc(item.cedula)})</span> ${equipoLabel(getEquipo(item.nombre, item.cedula))}</div>
-          <div style="margin-top:3px">Marcó: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
+          <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')})</span> ${equipoLabel(getEquipo(res.nombre, res.cedula))}</div>
+          <div style="margin-top:3px">Misión enviada: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
           ${item.nota ? `<div class="mute" style="margin-top:3px">Evidencia / nota: ${esc(item.nota)}</div>` : ''}
-          ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Marcada el: ${esc(fechaSol)}</div>` : ''}
+          ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Enviada el: ${esc(fechaSol)}</div>` : ''}
         </div>
-        <div style="display:flex;gap:6px">
-          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Validar y dar insignia</button>
-          <button type="button" class="sec" style="color:var(--coral)" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, true, ${jsArg(res.nombre)})'>✔ Aprobar a ${esc(corto(res.nombre))}</button>
+          <button type="button" class="sec" style="color:var(--coral)" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, false, ${jsArg(res.nombre)})'>Rechazar a ${esc(corto(res.nombre))}</button>
         </div>
       </div>`;
     }).join('') : '<p class="mute" style="margin:0">Ningún usuario tiene misiones pendientes de aprobación en este momento.</p>'}
@@ -2015,12 +2067,13 @@ function adminMisionesView(){
         <button type="button" class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
       </div>
       <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <b>${esc(resumenAsignacion(m))}</b> · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
-      ${marcadasPend.length ? `<div style="margin:6px 0 0;font-size:.88rem"><b>Marcada como completada por:</b> ${marcadasPend.map(pv=>`
-        <span class="tag pendiente" style="margin-right:6px;margin-top:4px">${esc(pv.nombre)} (CC ${esc(pv.cedula)})
-          <button type="button" style="padding:1px 7px;font-size:.75rem;margin-left:4px" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(pv.cedula)}, true)'>✔</button>
-          <button type="button" class="sec" style="padding:1px 6px;font-size:.75rem;color:var(--coral);border:0" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(pv.cedula)}, false)'>×</button>
-        </span>
-      `).join('')}</div>` : ''}
+      ${marcadasPend.length ? `<div style="margin:6px 0 0;font-size:.88rem"><b>Enviada por:</b> ${marcadasPend.map(pv=>{
+        const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+        return `<span class="tag pendiente" style="margin-right:6px;margin-top:4px">👤 ${esc(res.nombre)} (CC ${esc(res.cedula||'N/A')})
+          <button type="button" style="padding:1px 7px;font-size:.75rem;margin-left:4px" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(res.cedula)}, true, ${jsArg(res.nombre)})'>✔ Aprobar</button>
+          <button type="button" class="sec" style="padding:1px 6px;font-size:.75rem;color:var(--coral);border:0" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(res.cedula)}, false, ${jsArg(res.nombre)})'>×</button>
+        </span>`;
+      }).join('')}</div>` : ''}
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
         <label for="m-usr-${m.id}" style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
@@ -2078,21 +2131,23 @@ async function crearMision(){
 async function aprobarMision(misionId){
   const ced = $('#m-usr-'+misionId).value;
   if(!ced) return;
-  await aprobarMisionDirecto(misionId, ced, true);
+  const res = resolverDatosUsuario(ced);
+  await aprobarMisionDirecto(misionId, res.cedula, true, res.nombre);
 }
 
-async function aprobarMisionDirecto(misionId, ced, aprobar){
-  quitarPendienteLocalMision(misionId, ced);
+async function aprobarMisionDirecto(misionId, ced, aprobar, nombreHint=''){
+  const res = resolverDatosUsuario(ced, nombreHint);
+  quitarPendienteLocalMision(misionId, res.cedula);
   MISIONES = enrichMisiones(MISIONES);
-  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced, p_aprobar:aprobar});
+  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:res.cedula, p_aprobar:aprobar});
   broadcastEvent('validacion_resuelta', {
-    cedula: ced, mision_id: misionId, aprobada: aprobar,
+    cedula: res.cedula, mision_id: misionId, aprobada: aprobar,
     mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud de misión fue devuelta para revisión.'
   });
   if(aprobar){
-    notify('🏆 Misión aprobada e insignia otorgada', `Se validó el cumplimiento de la cédula ${ced}.`, 'success', '', `apr-mis-${misionId}-${ced}`);
+    notify('🏆 Aprobada: ' + res.nombre, `Se validó el cumplimiento de ${res.nombre} (CC ${res.cedula}).`, 'success', '', `apr-mis-${misionId}-${res.cedula}`);
   }else{
-    notify('↩ Solicitud rechazada', `Se devolvió la solicitud de la cédula ${ced}.`, 'warn', '', `rej-mis-${misionId}-${ced}`);
+    notify('↩ Rechazada: ' + res.nombre, `Se devolvió la solicitud de ${res.nombre} (CC ${res.cedula}).`, 'warn', '', `rej-mis-${misionId}-${res.cedula}`);
   }
 }
 
