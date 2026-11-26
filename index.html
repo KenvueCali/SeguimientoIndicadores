@@ -279,6 +279,9 @@ let PTS_INCREIBLE = +(localStorage.getItem('pts_increible') || 7);
 function norm(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 }
+function jsArg(val){
+  return JSON.stringify(String(val ?? ''));
+}
 function getEquipo(nombre, cedula=''){
   if(cedula && ASIGNACIONES_EQ['ced:' + String(cedula)]) return ASIGNACIONES_EQ['ced:' + String(cedula)];
   if(cedula && ASIGNACIONES_EQ[String(cedula)]) return ASIGNACIONES_EQ[String(cedula)];
@@ -335,7 +338,14 @@ function playTone(type='info'){
   }catch(e){}
 }
 
-function notify(title, body, type='info', actionHtml=''){
+const recentNotifs = new Map();
+function notify(title, body, type='info', actionHtml='', dedupKey=''){
+  const key = dedupKey || `${title}::${body}`;
+  const now = Date.now();
+  const prev = recentNotifs.get(key) || 0;
+  if(now - prev < 2500) return;
+  recentNotifs.set(key, now);
+
   playTone(type);
   const box = document.getElementById('toast-box');
   if(!box) return;
@@ -468,6 +478,7 @@ function getPendientesIncentivosAdmin(){
 }
 
 function esMisionParaUsuario(m){
+  if(!S || !S.ced) return true;
   if(m.asignacion_tipo === 'algunos'){
     const lista = (m.asignados_cedulas || []).map(String);
     return lista.includes(String(S.ced));
@@ -517,10 +528,10 @@ async function loadExtras(){
 }
 
 function buildSignature(d, h, mis, vals){
-  const posts = (d.postulaciones||[]).map(p=>`${p.id}:${p.estado}`).join('|');
-  const pend = (d.pendientes||[]).map(p=>`${p.id}`).join(',');
+  const posts = ((d && d.postulaciones) || []).map(p=>`${p.id}:${p.estado}`).join('|');
+  const pend = ((d && d.pendientes) || []).map(p=>`${p.id}`).join(',');
   const upd = h && h.actualizado ? h.actualizado : '';
-  const rk = (d.ranking||[]).map(r=>`${r.nombre}:${r.puntos}`).join('|');
+  const rk = ((d && d.ranking) || []).map(r=>`${r.nombre}:${r.puntos}`).join('|');
   const mSig = (mis||[]).map(m=>`${m.id}:${(m.pendientes_validacion||[]).length}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
   const vSig = (vals||[]).map(v=>`${v.incentivo_id}:${v.cedula}:${v.estado}`).join('|');
   return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}`;
@@ -537,7 +548,8 @@ function detectarYNotificarCambios(prevState, nextState){
           '🚀 ¡Nueva misión publicada!',
           `${m.titulo} (+${m.puntos} pts · ${m.insignia_icono} ${m.insignia_nombre})`,
           'alert',
-          `<button class="gold" onclick="userTab='misiones';drawUser()">Ver misión</button>`
+          `<button class="gold" onclick="userTab='misiones';drawUser()">Ver misión</button>`,
+          `mis-new-${m.id}`
         );
       }else{
         const oldM = (prevState.misiones || []).find(x => String(x.id) === String(m.id));
@@ -546,7 +558,9 @@ function detectarYNotificarCambios(prevState, nextState){
           notify(
             '🏅 ¡Misión validada!',
             `Ganaste +${m.puntos} pts y tu insignia ${m.insignia_icono} ${m.insignia_nombre}.`,
-            'success'
+            'success',
+            '',
+            `mis-val-${m.id}`
           );
         }
       }
@@ -557,9 +571,9 @@ function detectarYNotificarCambios(prevState, nextState){
     ((nextState.D && nextState.D.postulaciones) || []).forEach(p => {
       if(oldMap[p.id] && oldMap[p.id] === 'pendiente' && p.estado !== 'pendiente'){
         if(p.estado === 'aprobada'){
-          notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success');
+          notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success', '', `post-ok-${p.id}`);
         }else{
-          notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info');
+          notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info', '', `post-fb-${p.id}`);
         }
       }
     });
@@ -571,7 +585,8 @@ function detectarYNotificarCambios(prevState, nextState){
           '🌟 Nueva postulación enviada',
           `${p.nombre} envió el caso ${p.caso || 'sin número'} para validar.`,
           'alert',
-          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`
+          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Abrir campana</button>`,
+          `adm-post-${p.id}`
         );
       }
     });
@@ -585,7 +600,8 @@ function detectarYNotificarCambios(prevState, nextState){
             '🚀 Reto marcado como completado',
             `${pv.nombre} marcó "${m.titulo}" como completado y pide validación.`,
             'alert',
-            `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`
+            `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+            `adm-mis-${m.id}-${pv.cedula}`
           );
         }
       });
@@ -598,7 +614,8 @@ function detectarYNotificarCambios(prevState, nextState){
           '🎯 Corte de incentivo por validar',
           `${v.nombre} solicitó validar el cierre de "${v.incentivo_nombre || 'Incentivo'}".`,
           'alert',
-          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`
+          `<button class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+          `adm-inc-${v.incentivo_id}-${v.cedula}`
         );
       }
     });
@@ -660,7 +677,7 @@ function scheduleRealtimeSync(){
     try{
       await syncState({ silent: false });
     }catch(e){}
-  }, 120);
+  }, 150);
 }
 
 function broadcastEvent(eventName, payload){
@@ -688,10 +705,11 @@ function setupRealtime(){
       if(!ids.includes(String(S.ced))) return;
     }
     notify(
-      '🚀 ¡Nueva misión publicada en tiempo real!',
+      '🚀 ¡Nueva misión publicada!',
       `${payload?.titulo || 'Nueva misión'} (+${payload?.puntos || 0} pts · ${payload?.insignia_icono || '🏅'} ${payload?.insignia_nombre || ''})`,
       'alert',
-      `<button class="gold" onclick="userTab='misiones';drawUser()">Ir a Misiones</button>`
+      `<button class="gold" onclick="userTab='misiones';drawUser()">Ir a Misiones</button>`,
+      `bc-mis-${payload?.titulo || ''}`
     );
     scheduleRealtimeSync();
   });
@@ -702,7 +720,8 @@ function setupRealtime(){
       '🌟 Nueva postulación enviada',
       `${payload?.nombre || 'Un usuario'} envió el caso ${payload?.caso || 'sin número'}.`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`
+      `<button class="gold" onclick="bellOpen=true;tab='post';drawAdmin()">Ver en campana</button>`,
+      `bc-post-${payload?.cedula || ''}-${payload?.caso || ''}`
     );
     scheduleRealtimeSync();
   });
@@ -713,7 +732,8 @@ function setupRealtime(){
       '🚀 Reto completado por usuario',
       `${payload?.nombre || 'Un usuario'} marcó "${payload?.mision_titulo || 'una misión'}" como completada.`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`
+      `<button class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Validar en campana</button>`,
+      `bc-reto-${payload?.cedula || ''}-${payload?.mision_id || ''}`
     );
     scheduleRealtimeSync();
   });
@@ -724,7 +744,8 @@ function setupRealtime(){
       '🎯 Cierre de incentivo enviado',
       `${payload?.nombre || 'Un usuario'} solicitó validar "${payload?.incentivo || 'un incentivo'}".`,
       'alert',
-      `<button class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`
+      `<button class="gold" onclick="bellOpen=true;tab='inc';drawAdmin()">Validar en campana</button>`,
+      `bc-corte-${payload?.cedula || ''}-${payload?.incentivo || ''}`
     );
     scheduleRealtimeSync();
   });
@@ -735,7 +756,9 @@ function setupRealtime(){
     notify(
       payload?.aprobada ? '✅ ¡Validación aprobada!' : '💬 Actualización de validación',
       payload?.mensaje || 'El administrador actualizó el estado de tu solicitud.',
-      payload?.aprobada ? 'success' : 'info'
+      payload?.aprobada ? 'success' : 'info',
+      '',
+      `bc-val-${payload?.cedula || S.ced}-${payload?.aprobada ? '1' : '0'}`
     );
     scheduleRealtimeSync();
   });
@@ -770,7 +793,7 @@ function startPolling(){
   pollTimer = setInterval(async ()=>{
     if(!S) return;
     try{ await syncState({ silent: true }); }catch(e){}
-  }, 5000);
+  }, 6000);
 }
 
 function startClockTick(){
@@ -815,16 +838,26 @@ function login(err=''){
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
 function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);cleanupRealtime();S=null;D=null;lastSignature=null;bellOpen=false;sessionStorage.removeItem('s');login()}
-function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
+function draw(){
+  try{
+    app.className=S.a?'':'wide';
+    S.a?drawAdmin():drawUser();
+    S.a?popHide():popShow();
+  }catch(err){
+    console.error('Error al dibujar la vista:', err);
+    app.innerHTML=`<div class="card"><h3>Error al mostrar la vista</h3><p class="mute">${esc(err.message)}</p><button onclick="syncState()">Reintentar</button></div>`;
+  }
+}
 
 function rtBadgeHtml(){
   return `<span id="rt-status-pill" class="live-pill"><span class="live-dot"></span>${rtConnected ? 'Tiempo real activo' : 'En vivo'}</span>`;
 }
 
-function ini(n){return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+function ini(n){return String(n||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
 function rankList(rk, showTeamBadge=false){
-  const mx=rk[0]?rk[0].puntos:0,med=['🥇','🥈','🥉'];
-  return `<div class="card" style="padding:8px">${rk.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''} ${showTeamBadge?equipoLabel(getEquipo(x.nombre, x.cedula)):''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
+  const list = rk || [];
+  const mx=list[0]?list[0].puntos:0,med=['🥇','🥈','🥉'];
+  return `<div class="card" style="padding:8px">${list.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(String(x.nombre||'').split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''} ${showTeamBadge?equipoLabel(getEquipo(x.nombre, x.cedula)):''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
 }
 function updTxt(){
   if(!H)return '';
@@ -855,10 +888,15 @@ function getInsigniasGanadasUsuario(){
 }
 
 function drawUser(){
-  const miEq = getEquipo(D.nombre, S.ced);
-  const rkGlobal = D.ranking || [];
+  const nombreUsr = (D && D.nombre) ? D.nombre : 'Usuario';
+  const mesAct = (D && D.mes) ? D.mes : '';
+  const incentivosList = (D && Array.isArray(D.incentivos)) ? D.incentivos : [];
+  const postulacionesList = (D && Array.isArray(D.postulaciones)) ? D.postulaciones : [];
+
+  const miEq = getEquipo(nombreUsr, S.ced);
+  const rkGlobal = (D && Array.isArray(D.ranking)) ? D.ranking : [];
   const rkEquipo = miEq==='general' ? rkGlobal : rkGlobal.filter(x => getEquipo(x.nombre, x.cedula) === miEq);
-  const rkActivo = vistaRk === 'global' ? rkGlobal : rkEquipo;
+  const rkActivo = vistaRk === 'global' ? rkGlobal : (rkEquipo.length ? rkEquipo : rkGlobal);
 
   const iAct = rkActivo.findIndex(x=>x.yo);
   const iGlob = rkGlobal.findIndex(x=>x.yo);
@@ -872,10 +910,10 @@ function drawUser(){
   const insigniasGanadas = getInsigniasGanadasUsuario();
 
   const navUser = `<div class="tabs">
-    <button class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen y Premios</button>
-    <button class="${userTab==='dias'?'on':''}" onclick="userTab='dias';drawUser()">📅 Mi Día a Día (${cantDias})</button>
-    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
-    <button class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento</button>
+    <button type="button" class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resumen y Premios</button>
+    <button type="button" class="${userTab==='dias'?'on':''}" onclick="userTab='dias';drawUser()">📅 Mi Día a Día (${cantDias})</button>
+    <button type="button" class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
+    <button type="button" class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento</button>
   </div>`;
 
   const bloqueInsignias = `<div class="card" style="border-left:5px solid var(--gold)">
@@ -887,7 +925,7 @@ function drawUser(){
     </div>
     ${insigniasGanadas.length
       ? `<div class="badges-grid">${insigniasGanadas.map(m => `
-          <button class="badge-chip" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos}, '${esc(m.insignia_icono).replace(/'/g,"\\'")}', '${esc(m.insignia_nombre).replace(/'/g,"\\'")}')">
+          <button type="button" class="badge-chip" onclick='copiarImagenLogro(${jsArg(m.titulo)}, ${Number(m.puntos)||0}, ${jsArg(m.insignia_icono)}, ${jsArg(m.insignia_nombre)})'>
             <span>${esc(m.insignia_icono)}</span>
             <span>${esc(m.insignia_nombre)}</span>
             <span class="mute" style="font-size:.78rem">· Compartir</span>
@@ -905,7 +943,7 @@ function drawUser(){
           <h2 style="margin:0">📅 Tu detalle día a día</h2>
           <p class="mute" style="margin:4px 0 0">Revisa cómo te fue en cada jornada, el detalle de tus indicadores y tu comparación con el equipo.</p>
         </div>
-        <button class="sec" onclick="userTab='resultados';drawUser()">← Volver al resumen</button>
+        <button type="button" class="sec" onclick="userTab='resultados';drawUser()">← Volver al resumen</button>
       </div>
     </div>` + dias();
   }else if(userTab === 'misiones'){
@@ -925,8 +963,8 @@ function drawUser(){
       <div class="row" style="margin-bottom:6px">
         <h2>🏆 Ranking</h2>
         <div class="seg-switch" style="margin:0">
-          <button class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
-          <button class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
+          <button type="button" class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
+          <button type="button" class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
         </div>
       </div>
       <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
@@ -936,7 +974,7 @@ function drawUser(){
     ${compet(rkActivo,iAct,pts)}
     ${mision()}
     ${bloqueInsignias}
-    <h2 class="shd">✨ Premios a conseguir <span class="tag">${D.incentivos.length}</span></h2>
+    <h2 class="shd">✨ Premios a conseguir <span class="tag">${incentivosList.length}</span></h2>
     ${incCards(pts)}
     <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
     <div class="card row" style="margin-top:14px">
@@ -944,14 +982,14 @@ function drawUser(){
         <b>📅 ¿Quieres ver tu historial detallado día por día?</b>
         <div class="mute">Consulta cada fecha con el detalle de tus indicadores, promotores y detractores.</div>
       </div>
-      <button class="sec" onclick="userTab='dias';drawUser()">Abrir Mi Día a Día (${cantDias})</button>
+      <button type="button" class="sec" onclick="userTab='dias';drawUser()">Abrir Mi Día a Día (${cantDias})</button>
     </div>
     <h2 id="postular" class="shd">🌟 Postular una atención increíble</h2>
     <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas <b>${PTS_INCREIBLE} puntos</b>; si no, recibes feedback con un compromiso.</p>
     <label for="nc">Número de caso</label><input id="nc" maxlength="60" placeholder="Número de caso">
     <label for="t">Descripción</label><textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
-    <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
-    ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
+    <button type="button" onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
+    ${postulacionesList.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
     <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}
     </section></div>`;
   }
@@ -959,20 +997,20 @@ function drawUser(){
   app.innerHTML=`
   <div class="top">
     <div>
-      <h1>¡Hola, ${esc(D.nombre.split(' ')[0])}! 👋 ${equipoLabel(miEq)} ${rtBadgeHtml()}</h1>
-      <span class="mute">Así vas en ${esc(D.mes)}</span>
+      <h1>¡Hola, ${esc(nombreUsr.split(' ')[0])}! 👋 ${equipoLabel(miEq)} ${rtBadgeHtml()}</h1>
+      <span class="mute">Así vas en ${esc(mesAct)}</span>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Las alertas en tiempo real están activas.','info')">🔔 Probar sonido</button>
-      <button class="sec" onclick="out()">Salir</button>
+      <button type="button" class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Las alertas en tiempo real están activas.','info')">🔔 Probar sonido</button>
+      <button type="button" class="sec" onclick="out()">Salir</button>
     </div>
   </div>
   ${updTxt()}
   <div class="hero fr">
     <div>
       <span>Tu puesto (${vistaRk==='global'?'Global Operación':esc(nomEquipo)})</span><br>
-      <b>${iAct+1}</b><span style="font-size:1.4rem"> de ${rkActivo.length}</span><br>
-      <span>${pts} puntos sumados · Puesto global: <b>#${iGlob+1}</b> de ${rkGlobal.length}</span>
+      <b>${iAct>=0 ? iAct+1 : '-'}</b><span style="font-size:1.4rem"> de ${rkActivo.length}</span><br>
+      <span>${pts} puntos sumados · Puesto global: <b>#${iGlob>=0 ? iGlob+1 : '-'}</b> de ${rkGlobal.length}</span>
     </div>
     <span class="em">${em}</span>
   </div>
@@ -1021,7 +1059,7 @@ function seccionRetosUsuario(){
         ${completada
           ? `<div class="row">
                <span class="ok">✔ ¡Misión completada y validada! Insignia ganada: <b>${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</b></span>
-               <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos}, '${esc(m.insignia_icono).replace(/'/g,"\\'")}', '${esc(m.insignia_nombre).replace(/'/g,"\\'")}')">📤 Compartir imagen de logro</button>
+               <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(m.titulo)}, ${Number(m.puntos)||0}, ${jsArg(m.insignia_icono)}, ${jsArg(m.insignia_nombre)})'>📤 Compartir imagen de logro</button>
              </div>`
           : pendienteVal
             ? `<span class="tag pendiente">⏳ Completada · Esperando validación del admin</span>`
@@ -1032,13 +1070,13 @@ function seccionRetosUsuario(){
                      <label for="ev-nota-${m.id}" style="font-size:.85rem">Evidencia o nota (opcional)</label>
                      <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
                      <div class="row" style="gap:8px">
-                       <button onclick="marcarMisionCompletada(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">✔ Marcar como completada</button>
-                       ${!m.obligatoria ? `<button class="sec" onclick="omitirMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">Omitir misión</button>` : ''}
+                       <button type="button" onclick='marcarMisionCompletada(${Number(m.id)}, ${jsArg(m.titulo)})'>✔ Marcar como completada</button>
+                       ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir misión</button>` : ''}
                      </div>
                    </div>`
                 : `<div class="row" style="gap:8px">
-                     <button onclick="aceptarMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">✋ Aceptar misión o reto</button>
-                     ${!m.obligatoria ? `<button class="sec" onclick="omitirMision(${m.id}, '${esc(m.titulo).replace(/'/g,"\\'")}')">Omitir</button>` : ''}
+                     <button type="button" onclick='aceptarMision(${Number(m.id)}, ${jsArg(m.titulo)})'>✋ Aceptar misión o reto</button>
+                     ${!m.obligatoria ? `<button type="button" class="sec" onclick='omitirMision(${Number(m.id)}, ${jsArg(m.titulo)})'>Omitir</button>` : ''}
                    </div>`
         }
       </div>
@@ -1091,7 +1129,7 @@ async function marcarMisionCompletada(misionId, tituloMision='Misión'){
       });
     }catch(err){}
   }
-  notify('🚀 Misión enviada a validación', 'El administrador recibió la alerta en tiempo real en su campana.', 'success');
+  notify('🚀 Misión enviada a validación', 'El administrador recibió la alerta en tiempo real en su campana.', 'success', '', `mis-env-${misionId}`);
   await syncState({ silent: false });
 }
 
@@ -1199,7 +1237,7 @@ function opcionesConductaSelectHtml(idSelect='neg-tipo'){
 }
 
 function seccionNegativosUsuario(miEq){
-  const todos = D.ranking || [];
+  const todos = (D && D.ranking) ? D.ranking : [];
   const filtrados = vistaNeg === 'global'
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === miEq);
@@ -1207,8 +1245,8 @@ function seccionNegativosUsuario(miEq){
   return `<div class="row" style="margin:6px 0 10px">
     <h3 style="margin:0">📋 Tablero general (${vistaNeg==='global'?'Toda la operación':'Tu equipo'})</h3>
     <div class="seg-switch" style="margin:0">
-      <button class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Todos (${todos.length})</button>
-      <button class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
+      <button type="button" class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Todos (${todos.length})</button>
+      <button type="button" class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
     </div>
   </div>
   ${construirTableroGeneralConducta(vistaNeg==='global'?'global':miEq)}
@@ -1231,7 +1269,7 @@ function seccionNegativosUsuario(miEq){
     </div>
     <label for="neg-mot" style="font-size:.85rem">Motivo</label>
     <input id="neg-mot" maxlength="300" placeholder="Describe brevemente lo sucedido">
-    <button class="coral" onclick="reportarNegativo(false)">Enviar reporte anónimo (1 pt)</button>
+    <button type="button" class="coral" onclick="reportarNegativo(false)">Enviar reporte anónimo (1 pt)</button>
   </div>
 
   <h3 style="margin:18px 0 8px">Detalle de registros (${filtrados.length})</h3>
@@ -1269,9 +1307,9 @@ function compet(rk,i,pts){
   return (g?`<div class="card gap">${g}</div>`:'')+`<div class="stats"><div><b>${d.filter(perf).length}</b><span>Días perfectos</span></div><div><b>${racha}</b><span>Racha de días perfectos</span></div><div><b>${tot?Math.round(ok/tot*100):0}%</b><span>Indicadores cumplidos</span></div><div><b>${mejor}</b><span>Mejor día (pts)</span></div></div>`;
 }
 function podio(rk){
-  if(rk.length<3)return '';
+  if(!rk || rk.length<3)return '';
   const t=[rk[1],rk[0],rk[2]],pos=[2,1,3];
-  return `<div class="podio">${t.map((x,k)=>`<div class="c p${pos[k]} ${x.yo?'yo':''}"><div class="nm">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bl">${['🥈','🥇','🥉'][k]}<small>${x.puntos} pts</small></div></div>`).join('')}</div>`;
+  return `<div class="podio">${t.map((x,k)=>`<div class="c p${pos[k]} ${x.yo?'yo':''}"><div class="nm">${esc(String(x.nombre||'').split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bl">${['🥈','🥇','🥉'][k]}<small>${x.puntos} pts</small></div></div>`).join('')}</div>`;
 }
 
 function renderDetalleIndicadorDia(ind){
@@ -1311,7 +1349,7 @@ async function postular(){
     await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});
     msg='Postulación enviada';
     broadcastEvent('postulacion_enviada', { cedula: S.ced, nombre: D.nombre, caso: c });
-    notify('📨 Postulación enviada', `Tu caso ${c} fue enviado y notificado al admin al instante.`, 'success');
+    notify('📨 Postulación enviada', `Tu caso ${c} fue enviado y notificado al admin al instante.`, 'success', '', `post-sent-${c}`);
     await syncState({ silent: false });
   }catch(e){alert(e.message)}
 }
@@ -1349,7 +1387,7 @@ function toggleTipoMetaForm(){
 }
 
 function editarInc(id){
-  const incRaw = (D.incentivos || []).find(x => x.id === id);
+  const incRaw = ((D && D.incentivos) || []).find(x => x.id === id);
   if(!incRaw) return;
   const inc = enrichIncentivo(incRaw);
   editIncId = id;
@@ -1428,7 +1466,7 @@ async function solicitarValidacionIncentivo(incId, nombreInc, corteTxt){
       p_ced: S.ced, p_clave: S.clave, p_incentivo_id: incId, p_nota: nota
     });
   }catch(e){}
-  notify('📋 Validación solicitada al líder', `Enviaste tu cierre/corte para "${nombreInc}" (${corteTxt}).`, 'success');
+  notify('📋 Validación solicitada al líder', `Enviaste tu cierre/corte para "${nombreInc}" (${corteTxt}).`, 'success', '', `inc-req-${incId}`);
   await syncState({ silent: false });
 }
 
@@ -1505,13 +1543,13 @@ async function cambiarEquipoPersona(ced, nombre){
 function adminIncentivosView(){
   const pendientesVal = getPendientesIncentivosAdmin();
   const aprobadasVal = (VALIDACIONES_INC || []).filter(v => v.estado === 'aprobada');
-  const opcionesInd = (D.indicadores || []).map(i => i.nombre);
+  const opcionesInd = ((D && D.indicadores) || []).map(i => i.nombre);
 
   const bandejaValidacion = `<div class="card" style="border-left:5px solid var(--purple)">
     <h3 style="margin-bottom:6px">🕵️ Validación de cierre o corte de indicador por líder (${pendientesVal.length} pendientes)</h3>
     <p class="mute" style="margin-top:0">Cuando un incentivo es por <b>meta en indicador</b>, al cierre o corte el líder valida si se cumplió el indicador.</p>
     ${pendientesVal.length ? pendientesVal.map(v => {
-      const incRaw = (D.incentivos || []).find(x => String(x.id) === String(v.incentivo_id));
+      const incRaw = ((D && D.incentivos) || []).find(x => String(x.id) === String(v.incentivo_id));
       const inc = incRaw ? enrichIncentivo(incRaw) : {
         nombre: v.incentivo_nombre || 'Incentivo',
         premio: v.premio || '',
@@ -1532,8 +1570,8 @@ function adminIncentivosView(){
           <label for="nota-lider-${v.incentivo_id}-${esc(v.cedula)}" style="font-size:.85rem">Observación del líder</label>
           <input id="nota-lider-${v.incentivo_id}-${esc(v.cedula)}" placeholder="Observación o validación del líder (opcional)">
           <div class="row" style="gap:6px">
-            <button onclick="validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', true)">✔ Validar cierre / corte</button>
-            <button class="sec" style="color:var(--coral)" onclick="validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', false)">Rechazar</button>
+            <button type="button" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, true)'>✔ Validar cierre / corte</button>
+            <button type="button" class="sec" style="color:var(--coral)" onclick='validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, false)'>Rechazar</button>
           </div>
         </div>
       </div>`;
@@ -1578,10 +1616,10 @@ function adminIncentivosView(){
         <input id="x-ind-corte" value="Cierre de mes" placeholder="Ej: Cierre de mes, Corte quincenal">
       </div>
     </div>
-    <button onclick="guardarInc()">${editIncId ? 'Actualizar incentivo' : 'Crear incentivo'}</button>
-    ${editIncId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
+    <button type="button" onclick="guardarInc()">${editIncId ? 'Actualizar incentivo' : 'Crear incentivo'}</button>
+    ${editIncId ? `<button type="button" class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
   </div>
-  ${(D.incentivos || []).map(raw => {
+  ${((D && D.incentivos) || []).map(raw => {
     const i = enrichIncentivo(raw);
     const esInd = i.tipo_meta === 'indicador';
     return `<div class="card row">
@@ -1593,8 +1631,8 @@ function adminIncentivosView(){
         <span class="mute" style="margin-left:4px">${esc(i.mes)}</span>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="sec" onclick="editarInc(${i.id})">Editar</button>
-        <button class="sec" style="color:var(--coral)" onclick="del('incentivos',${i.id})">Borrar</button>
+        <button type="button" class="sec" onclick="editarInc(${i.id})">Editar</button>
+        <button type="button" class="sec" style="color:var(--coral)" onclick="del('incentivos',${i.id})">Borrar</button>
       </div>
     </div>`;
   }).join('')}`;
@@ -1618,7 +1656,7 @@ function campanaAdminHtml(){
   const total = pendPost.length + pendMis.length + pendInc.length;
 
   return `<div class="bell-wrap">
-    <button class="bell-btn ${total?'has-alert':''}" onclick="toggleBell()" aria-expanded="${bellOpen?'true':'false'}" aria-label="Notificaciones pendientes de validación">
+    <button type="button" class="bell-btn ${total?'has-alert':''}" onclick="toggleBell()" aria-expanded="${bellOpen?'true':'false'}" aria-label="Notificaciones pendientes de validación">
       <span>🔔</span>
       <span style="font-size:.88rem">Validaciones</span>
       <span class="bell-badge">${total}</span>
@@ -1626,21 +1664,21 @@ function campanaAdminHtml(){
     ${bellOpen ? `<div class="bell-pop" role="region" aria-label="Bandeja de validaciones pendientes">
       <div class="row">
         <b>🔔 Pendientes por validar (${total})</b>
-        <button class="sec" style="padding:2px 8px;font-size:.8rem" onclick="bellOpen=false;drawAdmin()">Cerrar</button>
+        <button type="button" class="sec" style="padding:2px 8px;font-size:.8rem" onclick="bellOpen=false;drawAdmin()">Cerrar</button>
       </div>
 
       <div class="bell-sec">
         <div class="row">
           <b>🚀 Retos / Misiones completadas (${pendMis.length})</b>
-          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver pestaña</button>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver pestaña</button>
         </div>
         ${pendMis.length ? pendMis.map(item => `
           <div class="bell-item">
             <div><b>${esc(item.nombre)}</b> <span class="mute">· ${esc(item.mision_titulo)}</span> <span class="tag aprobada">+${item.mision_puntos} pts</span></div>
             ${item.nota ? `<div class="mute" style="font-size:.8rem;margin-top:2px">Evidencia: ${esc(item.nota)}</div>` : ''}
             <div style="display:flex;gap:6px;margin-top:6px">
-              <button style="padding:4px 10px;font-size:.8rem" onclick="bellOpen=false;aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Aprobar</button>
-              <button class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick="bellOpen=false;aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', false)">Rechazar</button>
+              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Aprobar</button>
+              <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
             </div>
           </div>
         `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin misiones pendientes.</div>'}
@@ -1649,14 +1687,14 @@ function campanaAdminHtml(){
       <div class="bell-sec">
         <div class="row">
           <b>🌟 Postulaciones de atención (${pendPost.length})</b>
-          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('post')">Ir a Postulaciones</button>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('post')">Ir a Postulaciones</button>
         </div>
         ${pendPost.length ? pendPost.map(p => `
           <div class="bell-item">
             <div><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span></div>
             <div style="margin-top:3px">${esc(p.descripcion)}</div>
             <div style="margin-top:6px">
-              <button style="padding:4px 10px;font-size:.8rem" onclick="irATabValidacion('post')">Evaluar postulación</button>
+              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick="irATabValidacion('post')">Evaluar postulación</button>
             </div>
           </div>
         `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin postulaciones pendientes.</div>'}
@@ -1665,14 +1703,14 @@ function campanaAdminHtml(){
       <div class="bell-sec">
         <div class="row">
           <b>🎯 Cortes / Cierres de incentivo (${pendInc.length})</b>
-          <button class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('inc')">Ver Incentivos</button>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('inc')">Ver Incentivos</button>
         </div>
         ${pendInc.length ? pendInc.map(v => `
           <div class="bell-item">
             <div><b>${esc(v.nombre)}</b> <span class="mute">· ${esc(v.incentivo_nombre || 'Incentivo')} (${esc(v.corte_indicador || 'Cierre')})</span></div>
             <div style="display:flex;gap:6px;margin-top:6px">
-              <button style="padding:4px 10px;font-size:.8rem" onclick="bellOpen=false;validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', true)">✔ Validar</button>
-              <button class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick="bellOpen=false;validarIncentivoLider(${v.incentivo_id}, '${esc(v.cedula)}', false)">Rechazar</button>
+              <button type="button" style="padding:4px 10px;font-size:.8rem" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, true)'>✔ Validar</button>
+              <button type="button" class="sec" style="padding:4px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;validarIncentivoLider(${Number(v.incentivo_id)}, ${jsArg(v.cedula)}, false)'>Rechazar</button>
             </div>
           </div>
         `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin cortes de incentivo pendientes.</div>'}
@@ -1683,12 +1721,16 @@ function campanaAdminHtml(){
 
 const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
+  const rkAll = (D && D.ranking) ? D.ranking : [];
   const rkFiltrado = adminFiltroEq==='global'
-    ? D.ranking
-    : D.ranking.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
+    ? rkAll
+    : rkAll.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
   const totalSolicitudesMis = getPendientesMisionesAdmin().length;
   const totalSolicitudesInc = getPendientesIncentivosAdmin().length;
+  const pendientesList = (D && D.pendientes) ? D.pendientes : [];
+  const indicadoresList = (D && D.indicadores) ? D.indicadores : [];
+  const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
   const v={
   pos:()=>posView(),
@@ -1701,40 +1743,40 @@ function drawAdmin(){
       <div class="row" style="gap:6px">
         <label for="pts-inc-input" class="mute" style="font-size:.82rem">Puntos</label>
         <input id="pts-inc-input" type="number" min="1" value="${PTS_INCREIBLE}" style="width:95px;margin:0">
-        <button class="gold" onclick="guardarPuntosIncreible()">Guardar puntos</button>
+        <button type="button" class="gold" onclick="guardarPuntosIncreible()">Guardar puntos</button>
       </div>
     </div>
-    ${D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
+    ${pendientesList.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
     <label for="f${p.id}" style="font-size:.85rem">Feedback</label><input id="f${p.id}" placeholder="Feedback">
     <label for="c${p.id}" style="font-size:.85rem">Compromiso de mejora</label><input id="c${p.id}" placeholder="Compromiso de mejora">
-    <button onclick="evaluar(${p.id},true,'${esc(p.cedula||'')}','${esc(p.caso||'')}')">Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button class="sec" onclick="evaluar(${p.id},false,'${esc(p.cedula||'')}','${esc(p.caso||'')}')">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
+    <button type="button" onclick='evaluar(${Number(p.id)}, true, ${jsArg(p.cedula||'')}, ${jsArg(p.caso||'')})'>Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button type="button" class="sec" onclick='evaluar(${Number(p.id)}, false, ${jsArg(p.cedula||'')}, ${jsArg(p.caso||'')})'>Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label for="fe">Fecha</label><input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"><p id="aw" class="err" style="min-height:0"></p>
-    <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (opcionales: <code>,promotores,detractores</code>).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
-    <label for="lt">Registros</label><textarea id="lt" rows="8" placeholder="1012345678,NPS,1,4,0"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
+    <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (opcionales: <code>,promotores,detractores</code>).<br>Indicadores: ${indicadoresList.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
+    <label for="lt">Registros</label><textarea id="lt" rows="8" placeholder="1012345678,NPS,1,4,0"></textarea><button type="button" onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
   per:()=>`<div class="card">
     <h3 style="margin-bottom:8px">${editUsrCed ? 'Editar persona (Cédula ' + esc(editUsrCed) + ')' : 'Agregar o actualizar persona'}</h3>
     <label for="uc" style="font-size:.85rem">Cédula</label><input id="uc" placeholder="Cédula">
     <label for="un" style="font-size:.85rem">Nombre completo</label><input id="un" placeholder="Nombre completo">
     <label for="uk" style="font-size:.85rem">Clave</label><input id="uk" placeholder="Clave (vacía = mantener clave actual)">
-    <button onclick="guardarPersona()">${editUsrCed ? 'Actualizar nombre / clave' : 'Guardar persona'}</button>
-    ${editUsrCed ? `<button class="sec" style="margin-left:6px" onclick="cancelarEditarPersona()">Cancelar</button>` : ''}
+    <button type="button" onclick="guardarPersona()">${editUsrCed ? 'Actualizar nombre / clave' : 'Guardar persona'}</button>
+    ${editUsrCed ? `<button type="button" class="sec" style="margin-left:6px" onclick="cancelarEditarPersona()">Cancelar</button>` : ''}
   </div>`
-    +D.usuarios.map(u=>{
+    +usuariosList.map(u=>{
       const eqAct = getEquipo(u.nombre, u.cedula);
       return `<div class="card row">
         <div><b>${esc(u.nombre)}</b> ${equipoLabel(eqAct)} <span class="mute">${esc(u.cedula)}</span></div>
         <div class="row" style="gap:6px">
-          <button class="sec" onclick="editarPersona('${esc(u.cedula)}','${esc(u.nombre).replace(/'/g,"\\'")}')">Editar nombre</button>
+          <button type="button" class="sec" onclick='editarPersona(${jsArg(u.cedula)}, ${jsArg(u.nombre)})'>Editar nombre</button>
           <label for="eq-${esc(u.cedula)}" class="mute" style="font-size:.8rem">Equipo</label>
           <select id="eq-${esc(u.cedula)}" style="width:auto;margin:0;padding:6px 10px">
             <option value="tradicional" ${eqAct==='tradicional'?'selected':''}>Tradicional</option>
             <option value="social" ${eqAct==='social'?'selected':''}>Social</option>
             <option value="general" ${eqAct==='general'?'selected':''}>Operación</option>
           </select>
-          <button class="sec" onclick="cambiarEquipoPersona('${esc(u.cedula)}','${esc(u.nombre).replace(/'/g,"\\'")}')">Guardar equipo</button>
-          <button class="sec" style="color:var(--coral)" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button>
+          <button type="button" class="sec" onclick='cambiarEquipoPersona(${jsArg(u.cedula)}, ${jsArg(u.nombre)})'>Guardar equipo</button>
+          <button type="button" class="sec" style="color:var(--coral)" onclick='del("usuarios", ${jsArg(u.cedula)})'>Borrar</button>
         </div>
       </div>`;
     }).join(''),
@@ -1742,14 +1784,14 @@ function drawAdmin(){
     <h3 style="margin-bottom:8px">${editIndId ? 'Editar indicador #' + editIndId : 'Nuevo indicador'}</h3>
     <label for="in" style="font-size:.85rem">Nombre del indicador</label><input id="in" placeholder="Nombre del indicador">
     <label for="ip" style="font-size:.85rem">Puntos por día cumplido</label><input id="ip" type="number" placeholder="Puntos por día cumplido">
-    <button onclick="guardarInd()">${editIndId ? 'Actualizar indicador' : 'Guardar indicador'}</button>
-    ${editIndId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInd()">Cancelar</button>` : ''}
+    <button type="button" onclick="guardarInd()">${editIndId ? 'Actualizar indicador' : 'Guardar indicador'}</button>
+    ${editIndId ? `<button type="button" class="sec" style="margin-left:6px" onclick="limpiarInd()">Cancelar</button>` : ''}
   </div>`
-  +D.indicadores.map(i=>`<div class="card row">
+  +indicadoresList.map(i=>`<div class="card row">
     <span>${esc(i.nombre)} · ${i.puntos} pts</span>
     <div style="display:flex;gap:6px">
-      <button class="sec" onclick="editarInd(${i.id}, '${esc(i.nombre).replace(/'/g,"\\'")}', ${i.puntos})">Editar</button>
-      <button class="sec" style="color:var(--coral)" onclick="del('indicadores',${i.id})">Borrar</button>
+      <button type="button" class="sec" onclick='editarInd(${Number(i.id)}, ${jsArg(i.nombre)}, ${Number(i.puntos)||0})'>Editar</button>
+      <button type="button" class="sec" style="color:var(--coral)" onclick="del('indicadores',${i.id})">Borrar</button>
     </div>
   </div>`).join(''),
   inc:()=>adminIncentivosView()}[tab]();
@@ -1759,13 +1801,13 @@ function drawAdmin(){
     <h1>Administración ${rtBadgeHtml()}</h1>
     <div style="display:flex;gap:6px;align-items:center">
       ${campanaAdminHtml()}
-      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas en tiempo real habilitadas.','info')">🔊 Probar sonido</button>
-      <button class="sec" onclick="out()">Salir</button>
+      <button type="button" class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas en tiempo real habilitadas.','info')">🔊 Probar sonido</button>
+      <button type="button" class="sec" onclick="out()">Salir</button>
     </div>
   </div>
   <div class="tabs">${Object.entries(T).map(([k,n])=>{
     let badge = '';
-    if(k==='post' && D.pendientes.length) badge = ` (${D.pendientes.length})`;
+    if(k==='post' && pendientesList.length) badge = ` (${pendientesList.length})`;
     if(k==='mis' && totalSolicitudesMis) badge = ` (${totalSolicitudesMis})`;
     if(k==='inc' && totalSolicitudesInc) badge = ` (${totalSolicitudesInc})`;
     return `<button type="button" data-action="admin-tab" data-tab="${k}" class="${k===tab?'on':''}" onclick="bellOpen=false;editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${badge}</button>`;
@@ -1774,9 +1816,9 @@ function drawAdmin(){
   <div class="row" style="margin:28px 0 10px">
     <h2 style="margin:0">Ranking actual</h2>
     <div class="seg-switch" style="margin:0">
-      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+      <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
   </div>
   <div class="card">${rkFiltrado.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)} ${equipoLabel(getEquipo(x.nombre, x.cedula))}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
@@ -1794,7 +1836,7 @@ function toggleSelectorAlgunos(){
 function resumenAsignacion(m){
   if(m.asignacion_tipo === 'algunos' && Array.isArray(m.asignados_cedulas) && m.asignados_cedulas.length){
     const nombres = m.asignados_cedulas.map(ced => {
-      const u = (D.usuarios || []).find(x => String(x.cedula) === String(ced));
+      const u = ((D && D.usuarios) || []).find(x => String(x.cedula) === String(ced));
       return u ? corto(u.nombre) : ced;
     });
     return `Asignada a ${nombres.length} persona(s): ${nombres.join(', ')}`;
@@ -1804,6 +1846,7 @@ function resumenAsignacion(m){
 
 function adminMisionesView(){
   const pendientesList = getPendientesMisionesAdmin();
+  const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
     <h3 style="margin-bottom:6px">📥 Quién marcó completada la misión (por aprobar: ${pendientesList.length})</h3>
@@ -1818,8 +1861,8 @@ function adminMisionesView(){
           ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Marcada el: ${esc(fechaSol)}</div>` : ''}
         </div>
         <div style="display:flex;gap:6px">
-          <button onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Aprobar y dar insignia</button>
-          <button class="sec" style="color:var(--coral)" onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', false)">Rechazar</button>
+          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, true)'>✔ Aprobar y dar insignia</button>
+          <button type="button" class="sec" style="color:var(--coral)" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(item.cedula)}, false)'>Rechazar</button>
         </div>
       </div>`;
     }).join('') : '<p class="mute" style="margin:0">Ningún usuario tiene misiones pendientes de aprobación en este momento.</p>'}
@@ -1858,7 +1901,7 @@ function adminMisionesView(){
     <div id="m-algunos-box" style="display:none">
       <label style="font-size:.85rem">Selecciona a quiénes asignar esta misión:</label>
       <div class="chk-list">
-        ${(D.usuarios || []).map(u => `
+        ${usuariosList.map(u => `
           <label class="chk-item">
             <input type="checkbox" class="m-asig-ced" value="${esc(u.cedula)}">
             <span>${esc(u.nombre)} <span class="mute">(${getEquipo(u.nombre, u.cedula)})</span></span>
@@ -1866,7 +1909,7 @@ function adminMisionesView(){
         `).join('')}
       </div>
     </div>
-    <button onclick="crearMision()">Publicar misión e insignia</button>
+    <button type="button" onclick="crearMision()">Publicar misión e insignia</button>
   </div>
   <h2>Misiones activas y validación manual</h2>
   ${MISIONES.length ? MISIONES.map(m => {
@@ -1879,7 +1922,7 @@ function adminMisionesView(){
           <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria ? '<span class="tag oblig" style="margin-left:4px">🔒 Obligatoria</span>' : '<span class="tag" style="margin-left:4px">Opcional</span>'}
         </div>
-        <button class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
+        <button type="button" class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
       </div>
       <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <b>${esc(resumenAsignacion(m))}</b> · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
       ${marcadasPend.length ? `<p style="margin:6px 0 0;font-size:.88rem"><b>Marcada como completada por:</b> ${marcadasPend.map(pv=>`<span class="tag pendiente" style="margin-right:4px">${esc(pv.nombre)} (${esc(pv.cedula)})</span>`).join('')}</p>` : ''}
@@ -1887,9 +1930,9 @@ function adminMisionesView(){
         <label for="m-usr-${m.id}" style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
           <select id="m-usr-${m.id}" style="margin:0;flex:1">
-            ${D.usuarios.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
+            ${usuariosList.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
           </select>
-          <button onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
+          <button type="button" onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
         </div>
         ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Validado y completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
       </div>
@@ -1934,7 +1977,7 @@ async function crearMision(){
     titulo, puntos, obligatoria, asignacion_tipo: asignacionTipo,
     asignados_cedulas: asignadosCedulas, insignia_nombre: insigniaNombre, insignia_icono: insigniaIcono
   });
-  notify('🚀 Misión publicada en tiempo real', `Se alertó a los usuarios sobre "${titulo}".`, 'success');
+  notify('🚀 Misión publicada en tiempo real', `Se alertó a los usuarios sobre "${titulo}".`, 'success', '', `pub-mis-${norm(titulo)}`);
 }
 
 async function aprobarMision(misionId){
@@ -1950,9 +1993,9 @@ async function aprobarMisionDirecto(misionId, ced, aprobar){
     mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud de misión fue devuelta para revisión.'
   });
   if(aprobar){
-    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya recibió la alerta en tiempo real.', 'success');
+    notify('🏆 Misión aprobada e insignia otorgada', 'El usuario ya recibió la alerta en tiempo real.', 'success', '', `apr-mis-${misionId}-${ced}`);
   }else{
-    notify('↩ Solicitud rechazada', 'Se devolvió la solicitud de validación.', 'warn');
+    notify('↩ Solicitud rechazada', 'Se devolvió la solicitud de validación.', 'warn', '', `rej-mis-${misionId}-${ced}`);
   }
 }
 
@@ -1988,13 +2031,14 @@ function adminNegativosView(){
   const filtrados = adminFiltroEq==='global'
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === adminFiltroEq);
+  const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
   return `<div class="row" style="margin:6px 0 10px">
     <h2 style="margin:0">📋 Tablero general de mal comportamiento (${adminFiltroEq==='global'?'Global':adminFiltroEq.toUpperCase()})</h2>
     <div class="seg-switch" style="margin:0">
-      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+      <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
   </div>
   ${construirTableroGeneralConducta(adminFiltroEq)}
@@ -2005,13 +2049,13 @@ function adminNegativosView(){
     <div class="row" style="gap:8px">
       <label for="nueva-op-conducta" class="mute" style="font-size:.82rem">Nueva opción</label>
       <input id="nueva-op-conducta" placeholder="Ej: No escaló a tiempo, Falta de empatía..." style="margin:0;flex:1">
-      <button onclick="agregarOpcionConducta()">+ Agregar opción</button>
+      <button type="button" onclick="agregarOpcionConducta()">+ Agregar opción</button>
     </div>
     <div class="badges-grid" style="margin-top:10px">
       ${OPCIONES_CONDUCTA.map(op => `
         <span class="tag" style="padding:5px 10px;display:inline-flex;align-items:center;gap:6px">
           ${esc(op)}
-          <button class="sec" style="padding:0 5px;font-size:.78rem;color:var(--coral);border:0" onclick="borrarOpcionConducta('${esc(op).replace(/'/g,"\\'")}')">×</button>
+          <button type="button" class="sec" style="padding:0 5px;font-size:.78rem;color:var(--coral);border:0" onclick='borrarOpcionConducta(${jsArg(op)})'>×</button>
         </span>
       `).join('')}
     </div>
@@ -2020,13 +2064,13 @@ function adminNegativosView(){
   <div class="card neg-card">
     <h3 style="margin-bottom:6px">Registrar alerta anónima de conducta (1 pt · No resta puntos)</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div><label for="neg-per" style="font-size:.85rem">Persona</label><select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select></div>
+      <div><label for="neg-per" style="font-size:.85rem">Persona</label><select id="neg-per">${usuariosList.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select></div>
       <div><label for="neg-tipo" style="font-size:.85rem">Tipo</label>${opcionesConductaSelectHtml('neg-tipo')}</div>
     </div>
     <label for="neg-mot" style="font-size:.85rem">Motivo</label><input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
-    <button class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
+    <button type="button" class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
   </div>
-  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span> <span class="tag">${esc(n.tipo)}</span></span><button class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
+  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span> <span class="tag">${esc(n.tipo)}</span></span><button type="button" class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
 }
 
 const fdl=f=>{const p=f.split('-');return p[2]+'/'+p[1]+'/'+p[0]};
@@ -2035,7 +2079,7 @@ function fechas(){
   const esp=F.usuarios*F.indicadores,ul=F.ultima?new Date(F.ultima).toLocaleString('es',{day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}):'sin registro';
   return `<h2>Fechas ya cargadas</h2><div class="card"><p class="mute">Revisa aquí antes de cargar para no repetir un día. Si cargas una fecha que ya existe, los resultados de esa fecha se reemplazan. Última carga: <b>${esc(ul)}</b>. Un día completo tiene ${esp} registros (${F.usuarios} personas × ${F.indicadores} indicadores).</p>`
   +(F.fechas.length?`<div style="overflow-x:auto"><table class="fch"><tr><th>Fecha</th><th>Registros</th><th>Personas</th><th>Cumplidos</th><th>Estado</th><th colspan="2"></th></tr>`
-  +F.fechas.map(x=>{const ok=x.registros>=esp;return `<tr><td><b>${fdl(x.fecha)}</b></td><td>${x.registros}</td><td>${x.personas} de ${F.usuarios}</td><td>${x.registros?Math.round(x.cumplidos/x.registros*100):0}%</td><td><span class="est ${ok?'c':'i'}">${ok?'Completo':'Incompleto'}</span></td><td><button class="sec" onclick="$('#fe').value='${x.fecha}';avisoFecha();scrollTo(0,0)">Usar fecha</button></td><td><button class="sec" style="color:var(--coral)" onclick="borrarFecha('${x.fecha}',${x.registros})">Borrar</button></td></tr>`}).join('')+'</table></div>'
+  +F.fechas.map(x=>{const ok=x.registros>=esp;return `<tr><td><b>${fdl(x.fecha)}</b></td><td>${x.registros}</td><td>${x.personas} de ${F.usuarios}</td><td>${x.registros?Math.round(x.cumplidos/x.registros*100):0}%</td><td><span class="est ${ok?'c':'i'}">${ok?'Completo':'Incompleto'}</span></td><td><button type="button" class="sec" onclick="$('#fe').value='${x.fecha}';avisoFecha();scrollTo(0,0)">Usar fecha</button></td><td><button type="button" class="sec" style="color:var(--coral)" onclick="borrarFecha('${x.fecha}',${x.registros})">Borrar</button></td></tr>`}).join('')+'</table></div>'
   :'<p class="mute">Aún no hay fechas cargadas.</p>')+'</div>';
 }
 function borrarFecha(f,n){
@@ -2047,7 +2091,7 @@ function avisoFecha(){
   a.textContent=d?`⚠ ${fdl(d.fecha)} ya tiene ${d.registros} registros cargados. Si guardas, se reemplazan los resultados de esa fecha.`:'';
 }
 const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
-const corto=n=>n.split(' ').slice(0,2).join(' ');
+const corto=n=>String(n||'').split(' ').slice(0,2).join(' ');
 function posView(){
   if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
   const P_ALL=G.personas;
@@ -2063,9 +2107,9 @@ function posView(){
   const filtroBar = `<div class="row" style="margin-bottom:12px">
     <h2 style="margin:0">¿Por qué cada persona está en su puesto?</h2>
     <div class="seg-switch" style="margin:0">
-      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+      <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
   </div>`;
 
@@ -2104,16 +2148,16 @@ function posView(){
 }
 let popOpen=false;
 const dd=n=>n+(n===1?' día':' días');
-const perfectDay=()=>D.indicadores.reduce((a,x)=>a+x.puntos,0);
+const perfectDay=()=>((D && D.indicadores) || []).reduce((a,x)=>a+x.puntos,0);
 function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
 function mision(){
-  const pd=perfectDay(),n=D.indicadores.length;
+  const pd=perfectDay(),n=((D && D.indicadores) || []).length;
   return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble.</p>
-  <div class="chips">${D.indicadores.map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
-  <div class="btns"><button onclick="popPost()">✨ Postular una atención</button><button class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
+  <div class="chips">${((D && D.indicadores) || []).map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
+  <div class="btns"><button type="button" onclick="popPost()">✨ Postular una atención</button><button type="button" class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
 }
 function incCards(pts){
-  const inc=(D.incentivos||[]).map(enrichIncentivo).slice().sort((a,b)=>(a.tipo_meta==='indicador'?1:0)-(b.tipo_meta==='indicador'?1:0)||(a.meta-b.meta));
+  const inc=((D && D.incentivos) || []).map(enrichIncentivo).slice().sort((a,b)=>(a.tipo_meta==='indicador'?1:0)-(b.tipo_meta==='indicador'?1:0)||(a.meta-b.meta));
   const pd=perfectDay(),r=ritmo();
   if(!inc.length)return '<p class="mute">Aún no hay premios a conseguir definidos para este mes.</p>';
 
@@ -2134,7 +2178,7 @@ function incCards(pts){
         ${validado
           ? `<div class="row" style="margin-top:8px">
                <span class="ok">✔ Cierre/corte validado por el líder${val && val.nota_lider ? ' · ' + esc(val.nota_lider) : ''}</span>
-               <button class="gold" onclick="copiarImagenLogro('${esc(n.nombre).replace(/'/g,"\\'")}', 0, '🏆', '${esc(n.premio).replace(/'/g,"\\'")}', 'Premio validado por indicador (${esc(n.indicador_nombre)} · ${esc(n.corte_indicador)}):')">📤 Compartir imagen de logro</button>
+               <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(n.nombre)}, 0, "🏆", ${jsArg(n.premio)}, ${jsArg("Premio validado por indicador (" + (n.indicador_nombre||"") + " · " + (n.corte_indicador||"") + "):")})'>📤 Compartir imagen de logro</button>
              </div>`
           : pendienteLider
             ? `<div style="margin-top:8px"><span class="tag pendiente">⏳ Solicitud enviada · Esperando validación del líder en ${esc(n.corte_indicador)}</span></div>`
@@ -2142,7 +2186,7 @@ function incCards(pts){
                  ${rechazada ? `<div class="err" style="min-height:0;margin-bottom:6px">Observación del líder: ${esc((val && val.nota_lider) || 'Revisa el resultado del corte/cierre.')}</div>` : ''}
                  <label for="val-inc-nota-${n.id}" style="font-size:.85rem">Resultado o evidencia</label>
                  <input id="val-inc-nota-${n.id}" placeholder="Opcional: resultado del cierre/corte o enlace de evidencia">
-                 <button onclick="solicitarValidacionIncentivo(${n.id}, '${esc(n.nombre).replace(/'/g,"\\'")}', '${esc(n.corte_indicador).replace(/'/g,"\\'")}')">✔ Solicitar validación de cierre/corte con el líder</button>
+                 <button type="button" onclick='solicitarValidacionIncentivo(${Number(n.id)}, ${jsArg(n.nombre)}, ${jsArg(n.corte_indicador)})'>✔ Solicitar validación de cierre/corte con el líder</button>
                </div>`
         }
       </div></div>`;
@@ -2167,7 +2211,7 @@ function incCards(pts){
 function misInd(){
   const d=(H&&H.dias)||[],st={};
   d.forEach(x=>x.indicadores.forEach(i=>{const q=st[i.nombre]=st[i.nombre]||{ok:0,t:0};q.t++;if(i.cumplido)q.ok++}));
-  const rows=D.indicadores.map(i=>{const q=st[i.nombre]||{ok:0,t:0};return{...i,ok:q.ok,t:q.t,perd:(q.t-q.ok)*i.puntos}});
+  const rows=((D && D.indicadores) || []).map(i=>{const q=st[i.nombre]||{ok:0,t:0};return{...i,ok:q.ok,t:q.t,perd:(q.t-q.ok)*i.puntos}});
   const opp=rows.filter(x=>x.perd>0).sort((a,b)=>b.perd-a.perd)[0];
   return rows.map(x=>{const p=x.t?Math.round(x.ok/x.t*100):0;return `<div class="card ib"><div class="tp"><span><b>${esc(x.nombre)}</b> <span class="mute">· ${x.puntos} pts por día cumplido</span></span><b>${x.dias*x.puntos} pts</b></div><div class="tr" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p}%;background:${p>=80?'var(--teal)':p>=50?'var(--gold)':'var(--coral)'}"></i></div><span class="mute">${x.t?`Lo cumpliste ${x.ok} de ${dd(x.t)} (${p}%)`:'Aún sin registros este mes'}</span></div>`}).join('')
   +(opp?`<div class="card opp"><b>💎 Tu mayor oportunidad: ${esc(opp.nombre)}</b><br><span>Este mes dejaste de sumar <b>${opp.perd} pts</b> aquí (${dd(opp.t-opp.ok)} sin cumplir × ${opp.puntos} pts). Cumplirlo cada día es el camino más rápido para subir.</span></div>`:'');
@@ -2176,17 +2220,19 @@ function misInd(){
 function popHide(){const e=document.getElementById('pop');if(e)e.remove();const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.remove();if(d)d.remove();popOpen=false}
 function popShow(){
   popHide();if(!D||S.a)return;
-  const perfect=D.indicadores.reduce((a,x)=>a+x.puntos,0),aprob=D.postulaciones.filter(p=>p.estado==='aprobada').length,teaser=!sessionStorage.getItem('pz');
+  const inds = Array.isArray(D.indicadores) ? D.indicadores : [];
+  const posts = Array.isArray(D.postulaciones) ? D.postulaciones : [];
+  const perfect=inds.reduce((a,x)=>a+x.puntos,0),aprob=posts.filter(p=>p.estado==='aprobada').length,teaser=!sessionStorage.getItem('pz');
   const w=document.createElement('div');w.id='pop';
-  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma ${PTS_INCREIBLE} pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button onclick="popOpenF()">Ver cómo</button></div>`:''}<button class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
+  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button type="button" class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma ${PTS_INCREIBLE} pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button type="button" onclick="popOpenF()">Ver cómo</button></div>`:''}<button type="button" class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
   const o=document.createElement('div');o.id='ov';o.className='ov';o.onclick=popClose;
   const d=document.createElement('aside');d.id='dw';d.className='dw';d.setAttribute('role','dialog');d.setAttribute('aria-label','Cómo sumar puntos');
-  d.innerHTML=`<button class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
-  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${D.indicadores.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
+  d.innerHTML=`<button type="button" class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
+  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${inds.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
   <div class="stp"><span class="no2">2</span><div><b>Registra tus interacciones destacadas</b><br><span class="mute">Cuando tengas una atención de la que te sientas orgulloso, postúlala con el número de caso y cuenta qué pasó y por qué fue excepcional.</span></div></div>
   <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +${PTS_INCREIBLE} pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma ${PTS_INCREIBLE} puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
   <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+PTS_INCREIBLE} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
-  <p style="margin:16px 0 0"><button onclick="popPost()">✨ Postular una atención ahora</button></p>`;
+  <p style="margin:16px 0 0"><button type="button" onclick="popPost()">✨ Postular una atención ahora</button></p>`;
   document.body.append(w,o,d);
 }
 function popTz(){sessionStorage.setItem('pz','1');const t=document.getElementById('tz');if(t)t.remove()}
