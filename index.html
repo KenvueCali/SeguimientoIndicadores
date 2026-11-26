@@ -6,36 +6,45 @@
 <title>Ranking de indicadores</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#eef2f6;--card:#fff;--ink:#0f2a43;--mute:#5b6f82;--line:#d5dee8;--teal:#0e8f83;--gold:#e0a526;--coral:#d6543f}
+:root{--bg:#eef2f6;--card:#fff;--ink:#0f2a43;--mute:#5b6f82;--line:#d5dee8;--teal:#0e8f83;--gold:#e0a526;--coral:#d6543f;--purple:#7c4dff}
 @media(prefers-color-scheme:dark){:root{--bg:#0c1a29;--card:#12263a;--ink:#e8eef5;--mute:#93a7ba;--line:#24405a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Bricolage Grotesque',system-ui,sans-serif;padding:16px}
 main{max-width:760px;margin:0 auto}
-main.wide{max-width:1120px}
+main.wide{max-width:1160px}
 h1,h2,h3{margin:0;line-height:1.15}
 h2{font-size:1.15rem;margin:28px 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:10px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .hero{background:var(--ink);color:#fff;border-radius:10px;padding:22px;margin-bottom:6px}
 .hero b{font-size:3.4rem;font-weight:800;display:block;line-height:1}
 .hero span{color:#b9c7d6}
 input,textarea,select{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;margin:4px 0 8px}
-button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 16px;background:var(--teal);color:#fff;cursor:pointer}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 16px;background:var(--teal);color:#fff;cursor:pointer;transition:opacity .2s}
+button:hover{opacity:.92}
 button.sec{background:transparent;color:var(--mute);border:1px solid var(--line)}
-button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button.gold{background:var(--gold);color:#222}
+button.coral{background:var(--coral);color:#fff}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .track{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 4px}
 .track i{display:block;height:100%;background:var(--teal);border-radius:6px;transition:width .6s}
 .track.ok i{background:var(--gold)}
-.row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 .rk{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:9px 12px;border-radius:8px}
 .rk.yo{background:var(--teal);color:#fff;font-weight:600}
 .rk .n{font-weight:800;font-size:1.1rem}
 .mute{color:var(--mute);font-size:.9rem}
-.tag{font-size:.8rem;padding:2px 8px;border-radius:20px;background:var(--line)}
-.tag.aprobada{background:var(--gold);color:#222}.tag.feedback{background:var(--coral);color:#fff}
+.tag{font-size:.78rem;padding:2px 8px;border-radius:20px;background:var(--line);display:inline-block;font-weight:600}
+.tag.aprobada{background:var(--gold);color:#222}
+.tag.feedback,.tag.neg{background:var(--coral);color:#fff}
+.tag.eq-trad{background:#1e6091;color:#fff}
+.tag.eq-soc{background:var(--purple);color:#fff}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px}
 .tabs button.on{background:var(--ink);color:#fff}
+.seg-switch{display:inline-flex;background:var(--bg);padding:4px;border-radius:10px;border:1px solid var(--line);gap:4px;margin-bottom:10px}
+.seg-switch button{padding:6px 12px;font-size:.85rem;background:transparent;color:var(--mute);border-radius:7px}
+.seg-switch button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .dia{padding:0;overflow:hidden}
 .dia .cab{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
 .dia .cab b{text-transform:capitalize}
@@ -58,9 +67,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .podio .p1 .bl{background:var(--gold);color:#222;height:120px}.podio .p1 .bl small{color:#4a3a10}
 .podio .p2 .bl{height:90px}.podio .p3 .bl{height:68px}
 .podio .yo .bl{background:var(--teal);color:#fff}.podio .yo .bl small{color:#d6f2ee}
-.rk .bar{grid-column:2/4;height:6px;background:var(--line);border-radius:4px;overflow:hidden}
-.rk .bar i{display:block;height:100%;background:var(--teal)}
-.rk.yo .bar{background:rgba(255,255,255,.3)}.rk.yo .bar i{background:#fff}
 .dia .big{font-size:1.9rem;font-weight:800;line-height:1}
 .dia .big small{font-size:1rem;color:var(--mute);font-weight:600}
 .dia .seg{display:flex;gap:4px;padding:10px 16px 4px}
@@ -69,7 +75,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .dia .cmp{padding:4px 16px 10px;font-size:.9rem;color:var(--mute)}
 .dia .star{padding:10px 16px;background:rgba(224,165,38,.16);font-size:.9rem}
 .dia.perf{border-color:var(--gold)}
-.lay{display:grid;grid-template-columns:minmax(290px,350px) 1fr;gap:22px;align-items:start}
+.lay{display:grid;grid-template-columns:minmax(300px,370px) 1fr;gap:22px;align-items:start}
 .lay aside{position:sticky;top:16px}
 .lay h2:first-child{margin-top:0}
 @media(max-width:860px){.lay{grid-template-columns:1fr}.lay aside{position:static}}
@@ -152,7 +158,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .mis button.sec{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)}
 .card.gap{background:linear-gradient(135deg,rgba(14,143,131,.16),rgba(224,165,38,.2));border-color:var(--gold)}
 .stats div:nth-child(1){border-top:4px solid var(--gold)}.stats div:nth-child(2){border-top:4px solid var(--coral)}.stats div:nth-child(3){border-top:4px solid var(--teal)}.stats div:nth-child(4){border-top:4px solid #4a7fd1}
-.shd{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:5px solid var(--gold)}
+.shd{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:5px solid var(--gold);flex-wrap:wrap}
 .shd .tag{background:var(--gold);color:#222;font-weight:800}
 .inc{position:relative;border:2px solid var(--line);padding:18px 16px 14px;overflow:hidden}
 .inc .pr{display:flex;align-items:center;gap:12px}
@@ -180,51 +186,219 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
 .opp{background:linear-gradient(135deg,rgba(214,84,63,.14),rgba(224,165,38,.16));border:1px dashed var(--coral)}
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
+
+/* Notificaciones Toast con sonido */
+#toast-box{position:fixed;top:16px;right:16px;z-index:120;display:flex;flex-direction:column;gap:8px;max-width:360px;width:calc(100vw - 32px)}
+.toast{background:var(--ink);color:#fff;border-left:5px solid var(--gold);border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;animation:slideIn .3s ease}
+.toast.ok-t{border-left-color:var(--teal)}
+.toast.warn-t{border-left-color:var(--coral)}
+.toast button{padding:4px 10px;font-size:.8rem;margin-top:6px}
+.toast .cls{background:none;color:#b9c7d6;padding:0 4px;font-size:1.2rem;margin:0}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+
+/* Banner de actualización pendiente */
+.upd-alert{background:linear-gradient(135deg,var(--gold),#f3b83a);color:#222;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;box-shadow:0 4px 14px rgba(224,165,38,.35)}
+.upd-alert button{background:var(--ink);color:#fff;padding:6px 14px;font-size:.88rem}
+
+/* Misiones y Retos */
+.reto-card{border-left:5px solid var(--purple)}
+.reto-card.done{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.12),var(--card))}
+.ev-box{background:rgba(214,84,63,.12);border:1px solid var(--coral);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.88rem;color:var(--ink)}
+.ev-box b{color:var(--coral)}
+
+/* Puntos Negativos / Conducta */
+.neg-card{border-left:5px solid var(--coral)}
+.neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:800}
 </style>
 </head>
 <body>
+<div id="toast-box" aria-live="polite"></div>
 <main id="app"></main>
 <script>
 // ====== CONFIGURA ESTO (Supabase > Project Settings > API) ======
 const URL_='https://ucpifysuxxgyiyahfkgg.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjcGlmeXN1eHhneWl5YWhma2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTA0NTQsImV4cCI6MjExMTE4NjQ1NH0.uYTSzRJ_hKwiovyTK-r6meRBnNCQeoKlIWADkM6ED6E';
 // ================================================================
+
+// ====== DEFINICIÓN DE EQUIPOS ======
+const EQUIPOS = {
+  tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
+  social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
+};
+function norm(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+}
+function getEquipo(nombre){
+  const n = norm(nombre);
+  if(EQUIPOS.tradicional.some(m => n.includes(m) || m.includes(n))) return 'tradicional';
+  if(EQUIPOS.social.some(m => n.includes(m) || m.includes(n))) return 'social';
+  return 'general';
+}
+function equipoLabel(eq){
+  if(eq==='tradicional') return '<span class="tag eq-trad">Tradicional</span>';
+  if(eq==='social') return '<span class="tag eq-soc">Social</span>';
+  return '<span class="tag">Operación</span>';
+}
+
+// ====== SISTEMA DE SONIDO Y ALERTAS ======
+let audioCtx = null;
+function playTone(type='info'){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    if(!audioCtx) audioCtx = new Ctx();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const notes = type==='success' ? [523.25, 659.25, 783.99]
+                : type==='alert'   ? [587.33, 880, 587.33, 880]
+                : type==='warn'    ? [330, 261.63]
+                : [440, 554.37];
+    notes.forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type==='warn' ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.13);
+      gain.gain.setValueAtTime(0.001, now + idx * 0.13);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + idx * 0.13 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.13 + 0.24);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + idx * 0.13);
+      osc.stop(now + idx * 0.13 + 0.25);
+    });
+  }catch(e){}
+}
+
+function notify(title, body, type='info', actionHtml=''){
+  playTone(type);
+  const box = document.getElementById('toast-box');
+  if(!box) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type==='success'?'ok-t':type==='warn'?'warn-t':'');
+  el.innerHTML = `<div><b>${esc(title)}</b><div style="font-size:.88rem;opacity:.92;margin-top:2px">${esc(body)}</div>${actionHtml}</div><button class="cls" aria-label="Cerrar" onclick="this.parentElement.remove()">×</button>`;
+  box.appendChild(el);
+  setTimeout(()=>{ if(el.parentElement) el.remove(); }, 9000);
+}
+
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null, selP='', tab='post', msg='';
+let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
+let MISIONES=[], NEGATIVOS=[];
+let selP='', tab='post', msg='';
+let vistaRk='equipo'; // 'equipo' | 'global'
+let vistaNeg='equipo'; // 'equipo' | 'global'
+let adminFiltroEq='global'; // 'global' | 'tradicional' | 'social'
+let hayActualizacion=false, pollTimer=null, lastSignature=null;
 
 async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
   const tx=await r.text(); let j=null; try{j=tx?JSON.parse(tx):null}catch(e){j={message:tx}}
   if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
 }
+
+// Carga datos complementarios (Misiones y Puntos Negativos) desde Supabase RPC
+async function loadExtras(){
+  try{
+    MISIONES = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced}) || [];
+  }catch(e){ MISIONES = []; }
+  try{
+    NEGATIVOS = await rpc('listar_negativos', {}) || [];
+  }catch(e){ NEGATIVOS = []; }
+}
+
+function buildSignature(d, h){
+  const posts = (d.postulaciones||[]).map(p=>`${p.id}:${p.estado}`).join('|');
+  const pend = (d.pendientes||[]).length;
+  const upd = h && h.actualizado ? h.actualizado : '';
+  const rk = (d.ranking||[]).map(r=>`${r.nombre}:${r.puntos}`).join('|');
+  return `${upd}::${posts}::${pend}::${rk}`;
+}
+
+function checkChanges(prevD, newD, newH){
+  if(!prevD) return;
+  if(!S.a){
+    // Detectar respuesta a postulación del usuario
+    const oldMap = {};
+    (prevD.postulaciones||[]).forEach(p=>oldMap[p.id]=p.estado);
+    (newD.postulaciones||[]).forEach(p=>{
+      if(oldMap[p.id] && oldMap[p.id]==='pendiente' && p.estado!=='pendiente'){
+        if(p.estado==='aprobada'){
+          notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success');
+        }else{
+          notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info');
+        }
+      }
+    });
+  }else{
+    // Detectar nuevas postulaciones en admin
+    if((newD.pendientes||[]).length > (prevD.pendientes||[]).length){
+      notify('📩 Nueva postulación recibida', 'Un integrante envió una atención para revisión.', 'alert');
+    }
+  }
+}
+
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async ()=>{
+    if(!S) return;
+    try{
+      const nextD = S.a ? await rpc('admin_panel',{p_admin:S.clave}) : await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
+      let nextH = null;
+      if(!S.a){ try{ nextH = await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave}); }catch(e){} }
+      const sig = buildSignature(nextD, nextH);
+      if(lastSignature && sig !== lastSignature && !hayActualizacion){
+        hayActualizacion = true;
+        notify(
+          '🔄 Actualización disponible',
+          'Hay nuevos datos o respuestas en el sistema. Actualiza la página para verlos.',
+          'alert',
+          `<button class="gold" onclick="hayActualizacion=false;load()">Actualizar ahora</button>`
+        );
+        draw();
+      }
+    }catch(e){}
+  }, 30000);
+}
+
 async function load(){
+  const prevD = D;
   try{
     D=S.a?await rpc('admin_panel',{p_admin:S.clave}):await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
-    if(S.a){try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
-      try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}}
-    if(!S.a){try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}}
-    sessionStorage.setItem('s',JSON.stringify(S)); draw();
+    if(S.a){
+      try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
+      try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}
+    }
+    if(!S.a){
+      try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}
+    }
+    await loadExtras();
+    checkChanges(prevD, D, H);
+    lastSignature = buildSignature(D, H);
+    hayActualizacion = false;
+    sessionStorage.setItem('s',JSON.stringify(S));
+    draw();
+    startPolling();
   }catch(e){S=null;sessionStorage.removeItem('s');login(e.message)}
 }
 function login(err=''){
+  if(pollTimer) clearInterval(pollTimer);
   popHide();app.className='';app.innerHTML=`<div class="card" style="margin-top:8vh"><h1>Ranking de indicadores</h1>
   <p class="mute">Ingresa con tu cédula y tu clave.</p>
   <label>Cédula<input id="c" inputmode="numeric" autocomplete="username"></label>
   <label>Clave<input id="k" type="password" autocomplete="current-password"></label>
   <p class="err">${esc(err)}</p><button id="go">Entrar</button>
   <button class="sec" id="adm" style="margin-left:6px">Soy administrador</button></div>`;
-  $('#go').onclick=()=>{S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
-  $('#adm').onclick=()=>{S={a:1,clave:$('#k').value};load()};
+  $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
+  $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
-function out(){S=null;sessionStorage.removeItem('s');login()}
+function out(){if(pollTimer)clearInterval(pollTimer);S=null;D=null;lastSignature=null;sessionStorage.removeItem('s');login()}
 function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHide():popShow()}
 
 // ---------- Vista de la persona ----------
 function ini(n){return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
-function rankList(rk){
+function rankList(rk, showTeamBadge=false){
   const mx=rk[0]?rk[0].puntos:0,med=['🥇','🥈','🥉'];
-  return `<div class="card" style="padding:8px">${rk.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
+  return `<div class="card" style="padding:8px">${rk.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''} ${showTeamBadge?equipoLabel(getEquipo(x.nombre)):''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
 }
 function updTxt(){
   if(!H)return '';
@@ -234,17 +408,55 @@ function updTxt(){
   return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="load()">Recargar</button></div>`;
 }
 function drawUser(){
-  const rk=D.ranking, i=rk.findIndex(x=>x.yo), me=rk[i], pts=me?me.puntos:0, em=i===0?'🏆':i===1?'🥈':i===2?'🥉':'💪';
-  app.innerHTML=`<div class="top"><div><h1>¡Hola, ${esc(D.nombre.split(' ')[0])}! 👋</h1><span class="mute">Así vas en ${esc(D.mes)}</span></div><button class="sec" onclick="out()">Salir</button></div>
+  const miEq = getEquipo(D.nombre);
+  const rkGlobal = D.ranking || [];
+  const rkEquipo = miEq==='general' ? rkGlobal : rkGlobal.filter(x => getEquipo(x.nombre) === miEq);
+  const rkActivo = vistaRk === 'global' ? rkGlobal : rkEquipo;
+
+  const iAct = rkActivo.findIndex(x=>x.yo);
+  const iGlob = rkGlobal.findIndex(x=>x.yo);
+  const me = rkGlobal[iGlob];
+  const pts = me ? me.puntos : 0;
+  const em = iAct===0?'🏆':iAct===1?'🥈':iAct===2?'🥉':'💪';
+  const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
+
+  app.innerHTML=`
+  ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay una actualización disponible en el sistema! Recarga para ver los últimos cambios.</span><button onclick="load()">Actualizar página</button></div>` : ''}
+  <div class="top">
+    <div>
+      <h1>¡Hola, ${esc(D.nombre.split(' ')[0])}! 👋 ${equipoLabel(miEq)}</h1>
+      <span class="mute">Así vas en ${esc(D.mes)}</span>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Las notificaciones con sonido están funcionando correctamente.','info')">🔔 Probar sonido</button>
+      <button class="sec" onclick="out()">Salir</button>
+    </div>
+  </div>
   ${updTxt()}
-  <div class="hero fr"><div><span>Tu puesto este mes</span><br><b>${i+1}</b><span style="font-size:1.4rem"> de ${rk.length}</span><br><span>${pts} puntos sumados</span></div><span class="em">${em}</span></div>
+  <div class="hero fr">
+    <div>
+      <span>Tu puesto (${vistaRk==='global'?'Global Operación':esc(nomEquipo)})</span><br>
+      <b>${iAct+1}</b><span style="font-size:1.4rem"> de ${rkActivo.length}</span><br>
+      <span>${pts} puntos sumados · Puesto global: <b>#${iGlob+1}</b> de ${rkGlobal.length}</span>
+    </div>
+    <span class="em">${em}</span>
+  </div>
   <div class="lay">
-  <aside><h2>🏆 Ranking del equipo</h2>
-    <p class="mute" style="margin:0 0 10px">Se ordena por los puntos que sumas cada día que cumples tus indicadores. ¡Todos pueden subir de puesto!</p>
-    ${podio(rk)}${rankList(rk)}</aside>
+  <aside>
+    <div class="row" style="margin-bottom:6px">
+      <h2>🏆 Ranking</h2>
+      <div class="seg-switch" style="margin:0">
+        <button class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
+        <button class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
+      </div>
+    </div>
+    <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
+    ${podio(rkActivo)}${rankList(rkActivo, vistaRk==='global')}
+  </aside>
   <section>
-  ${compet(rk,i,pts)}
+  ${compet(rkActivo,iAct,pts)}
   ${mision()}
+  ${seccionRetosUsuario()}
   <h2 class="shd">🎁 Incentivos activos <span class="tag">${D.incentivos.length}</span></h2>
   ${incCards(pts)}
   <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
@@ -256,8 +468,187 @@ function drawUser(){
   <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
   ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
   <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}
+  ${seccionNegativosUsuario(miEq)}
   </section></div>`;
 }
+
+// ---------- Misiones y Retos (Usuario) ----------
+function tiempoRestante(fechaLimite){
+  if(!fechaLimite) return 'Sin límite definido';
+  const diff = new Date(fechaLimite) - new Date();
+  if(diff <= 0) return 'Tiempo finalizado';
+  const hrs = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if(hrs >= 24) return `Disponible por ${Math.floor(hrs/24)}d ${hrs%24}h`;
+  return `Disponible por ${hrs}h ${mins}m`;
+}
+function seccionRetosUsuario(){
+  if(!MISIONES || !MISIONES.length) return '';
+  return `<h2 class="shd">🚀 Misiones y Retos especiales <span class="tag">${MISIONES.length}</span></h2>` +
+  MISIONES.map(m => {
+    const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
+    const completada = !!m.completada;
+    return `<div class="card reto-card ${completada?'done':''}">
+      <div class="row">
+        <div>
+          <b style="font-size:1.1rem">${esc(m.titulo)}</b>
+          <span class="tag ${completada?'aprobada':''}" style="margin-left:6px">+${m.puntos} pts</span>
+        </div>
+        <span class="mute" style="font-size:.82rem">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
+      </div>
+      ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
+      <div class="ev-box">
+        <b>📸 Requisito obligatorio:</b> Debes enviar una <b>foto o evidencia al jefe</b> del cumplimiento de esta misión para que te la validen.
+      </div>
+      <div class="row" style="margin-top:8px">
+        ${completada
+          ? `<span class="ok">✔ ¡Misión completada y validada!</span>
+             <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo)}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>`
+          : exp
+            ? `<span class="mute">Esta misión ya expiró.</span>`
+            : `<span class="mute">Envía tu evidencia al jefe para desbloquear tu insignia.</span>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Genera imagen en Canvas y la copia al portapapeles para compartir logro
+async function copiarImagenLogro(tituloMision, puntos){
+  try{
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+
+    // Fondo degradado
+    const grad = ctx.createLinearGradient(0, 0, 900, 480);
+    grad.addColorStop(0, '#0f2a43');
+    grad.addColorStop(1, '#0e8f83');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 900, 480);
+
+    // Marco dorado
+    ctx.strokeStyle = '#e0a526';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(24, 24, 852, 432);
+
+    // Textos
+    ctx.fillStyle = '#e0a526';
+    ctx.font = 'bold 28px system-ui, sans-serif';
+    ctx.fillText('🏆 MISIÓN CUMPLIDA · OPERACIÓN', 60, 88);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 46px system-ui, sans-serif';
+    ctx.fillText(D.nombre, 60, 165);
+
+    ctx.fillStyle = '#b9c7d6';
+    ctx.font = '26px system-ui, sans-serif';
+    ctx.fillText('Completó exitosamente el reto:', 60, 225);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 34px system-ui, sans-serif';
+    ctx.fillText(`"${tituloMision}"`, 60, 278);
+
+    // Pill de puntos
+    ctx.fillStyle = '#e0a526';
+    ctx.beginPath();
+    ctx.roundRect(60, 325, 250, 64, 32);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = 'bold 32px system-ui, sans-serif';
+    ctx.fillText(`+${puntos} PUNTOS`, 88, 368);
+
+    ctx.fillStyle = '#e3f6f3';
+    ctx.font = '22px system-ui, sans-serif';
+    ctx.fillText(`Equipo: ${getEquipo(D.nombre).toUpperCase()} · ${new Date().toLocaleDateString('es')}`, 340, 366);
+
+    canvas.toBlob(async blob => {
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+        notify('📋 ¡Imagen copiada!', 'Pégala (Ctrl+V) en tu chat o grupo para compartir tu logro.', 'success');
+      }catch(err){
+        // Fallback: descargar imagen si el navegador bloquea clipboard de imágenes
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `logro-${norm(tituloMision)}.png`;
+        a.click();
+        notify('📥 Imagen descargada', 'Tu navegador bloqueó el copiado directo; se descargó la imagen.', 'info');
+      }
+    }, 'image/png');
+  }catch(e){
+    alert('No se pudo generar la imagen de logro.');
+  }
+}
+
+// ---------- Puntos Negativos / Reportes de Conducta (No restan puntos) ----------
+function seccionNegativosUsuario(miEq){
+  const todos = D.ranking || [];
+  const filtrados = vistaNeg === 'global'
+    ? NEGATIVOS
+    : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === miEq);
+
+  // Agrupar conteo por persona
+  const conteo = {};
+  filtrados.forEach(n => {
+    conteo[n.reportado_nombre] = (conteo[n.reportado_nombre] || 0) + 1;
+  });
+
+  return `<h2 class="shd">⚠️ Alertas de conducta / Puntos negativos <span class="tag neg">No restan puntos</span></h2>
+  <div class="card neg-card">
+    <p class="mute" style="margin-top:0">Espacio para registrar llamados de atención por mal lenguaje, groserías o comportamientos errados. <b>Estos reportes son informativos y no restan puntos en el ranking.</b></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <label style="font-size:.85rem">Persona</label>
+        <select id="neg-per">
+          <option value="">Selecciona un compañero...</option>
+          ${todos.map(u => `<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.85rem">Tipo de conducta</label>
+        <select id="neg-tipo">
+          <option value="Mal lenguaje">Mal lenguaje</option>
+          <option value="Actitud grosera">Actitud grosera</option>
+          <option value="Comportamiento errado">Comportamiento errado</option>
+        </select>
+      </div>
+    </div>
+    <input id="neg-mot" maxlength="300" placeholder="Describe brevemente lo sucedido">
+    <button class="coral" onclick="reportarNegativo(false)">Registrar alerta de conducta</button>
+  </div>
+
+  <div class="row" style="margin:12px 0 8px">
+    <b>Historial de comportamiento (${vistaNeg==='global'?'Global Operación':'Mi Equipo'})</b>
+    <div class="seg-switch" style="margin:0">
+      <button class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
+      <button class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Global</button>
+    </div>
+  </div>
+  ${Object.keys(conteo).length ? `<div class="card" style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(conteo).sort((a,b)=>b[1]-a[1]).map(([nom,cnt])=>`<span class="neg-badge">${esc(corto(nom))}: ${cnt} ${cnt===1?'alerta':'alertas'}</span>`).join('')}</div></div>` : ''}
+  ${filtrados.length
+    ? filtrados.map(n=>`<div class="card" style="padding:12px"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))}</span><span class="tag neg">${esc(n.tipo)}</span></div><p style="margin:6px 0 2px">${esc(n.motivo)}</p><span class="mute" style="font-size:.8rem">Reportado por ${esc(n.reportado_por||'Anónimo')} · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('')
+    : '<p class="mute">Sin reportes de mal comportamiento en esta vista.</p>'
+  }`;
+}
+
+async function reportarNegativo(esAdmin){
+  const per = $('#neg-per').value;
+  const tipo = $('#neg-tipo').value;
+  const mot = $('#neg-mot').value.trim();
+  if(!per){ alert('Selecciona a una persona'); return; }
+  if(!mot){ alert('Describe el motivo del reporte'); return; }
+  try{
+    await rpc('crear_negativo', {
+      p_reportado_nombre: per,
+      p_tipo: tipo,
+      p_motivo: mot,
+      p_reportado_por: esAdmin ? 'Administrador' : D.nombre
+    });
+    notify('⚠️ Alerta registrada', `Se registró la alerta de conducta para ${per}.`, 'warn');
+    await load();
+  }catch(e){ alert(e.message); }
+}
+
 function compet(rk,i,pts){
   const d=(H&&H.dias)||[],tot=d.reduce((a,x)=>a+x.indicadores.length,0),ok=d.reduce((a,x)=>a+x.indicadores.filter(y=>y.cumplido).length,0);
   const perf=x=>x.indicadores.length&&x.indicadores.every(y=>y.cumplido);
@@ -265,7 +656,7 @@ function compet(rk,i,pts){
   const mejor=d.reduce((a,x)=>Math.max(a,x.puntos),0);
   let g='';
   if(i>=0&&rk.length>1){
-    if(i===0){const dif=pts-rk[1].puntos;g=`<span class="ic">🏆</span><span><b>¡Vas de primero!</b><br><span class="mute">${dif>0?`Tienes ${dif} pts de ventaja. Cada día cumplido la cuida.`:'Estás empatado en la cima. Un día más cumplido te separa.'}</span></span>`}
+    if(i===0){const dif=pts-rk[1].puntos;g=`<span class="ic">🏆</span><span><b>¡Vas de primero en esta tabla!</b><br><span class="mute">${dif>0?`Tienes ${dif} pts de ventaja. Cada día cumplido la cuida.`:'Estás empatado en la cima. Un día más cumplido te separa.'}</span></span>`}
     else{const dif=rk[i-1].puntos-pts;g=`<span class="ic">🎯</span><span><b>${dif>0?`A ${dif} pts de subir al puesto ${i}`:`Empatado con el puesto ${i}`}</b><br><span class="mute">${rk[i+1]?`Tu ventaja sobre el puesto ${i+2}: ${pts-rk[i+1].puntos} pts.`:'Cumplir tus indicadores de hoy te acerca.'}</span></span>`}
   }
   return (g?`<div class="card gap">${g}</div>`:'')+`<div class="stats"><div><b>${d.filter(perf).length}</b><span>Días perfectos</span></div><div><b>${racha}</b><span>Racha de días perfectos</span></div><div><b>${tot?Math.round(ok/tot*100):0}%</b><span>Indicadores cumplidos</span></div><div><b>${mejor}</b><span>Mejor día (pts)</span></div></div>`;
@@ -289,33 +680,144 @@ function dias(){
 async function postular(){
   const t=$('#t').value.trim(), c=$('#nc').value.trim();
   if(!c){alert('Debes escribir el número de caso');return} if(!t){alert('Describe la atención');return}
-  try{await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});msg='Postulación enviada';await load()}catch(e){alert(e.message)}
+  try{
+    await rpc('postular',{p_ced:S.ced,p_clave:S.clave,p_caso:c,p_texto:t});
+    msg='Postulación enviada';
+    notify('📨 Postulación enviada', `Tu caso ${c} fue enviado a revisión. Te avisaremos cuando tenga respuesta.`, 'success');
+    await load();
+  }catch(e){alert(e.message)}
 }
 
 // ---------- Vista del administrador ----------
-const T={pos:'Posiciones',post:'Postulaciones',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
+const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones y Retos',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
+  const rkFiltrado = adminFiltroEq==='global'
+    ? D.ranking
+    : D.ranking.filter(x => getEquipo(x.nombre) === adminFiltroEq);
+
   const v={
   pos:()=>posView(),
-  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
+  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
     <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar 7 puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
+  mis:()=>adminMisionesView(),
+  neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
     <p class="mute">Una línea por registro: <code>cédula,indicador,1</code> (1 cumplió, 0 no cumplió).<br>Indicadores: ${D.indicadores.map(i=>esc(i.nombre)).join(', ')||'(crea uno primero)'}</p>
     <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
   per:()=>`<div class="card"><input id="uc" placeholder="Cédula"><input id="un" placeholder="Nombre"><input id="uk" placeholder="Clave (vacía = no cambiar)">
     <button onclick="g('admin_usuario',{p_ced:$('#uc').value.trim(),p_nombre:$('#un').value.trim(),p_clave:$('#uk').value})">Guardar persona</button></div>`
-    +D.usuarios.map(u=>`<div class="card row"><span>${esc(u.nombre)} <span class="mute">${esc(u.cedula)}</span></span><button class="sec" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button></div>`).join(''),
+    +D.usuarios.map(u=>`<div class="card row"><span>${esc(u.nombre)} ${equipoLabel(getEquipo(u.nombre))} <span class="mute">${esc(u.cedula)}</span></span><button class="sec" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button></div>`).join(''),
   ind:()=>`<div class="card"><input id="in" placeholder="Nombre del indicador"><input id="ip" type="number" placeholder="Puntos por día cumplido">
     <button onclick="g('admin_indicador',{p_nombre:$('#in').value.trim(),p_puntos:+$('#ip').value})">Guardar indicador</button></div>`
     +D.indicadores.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${i.puntos} pts</span><button class="sec" onclick="del('indicadores',${i.id})">Borrar</button></div>`).join(''),
   inc:()=>`<div class="card"><p class="mute">Se crean para el mes actual (${esc(D.mes)}).</p><input id="xn" placeholder="Nombre"><input id="xp" placeholder="Premio"><input id="xm" type="number" placeholder="Meta de puntos">
     <button onclick="g('admin_incentivo',{p_nombre:$('#xn').value.trim(),p_premio:$('#xp').value.trim(),p_meta:+$('#xm').value})">Crear incentivo</button></div>`
     +D.incentivos.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${esc(i.premio)} · ${i.meta} pts <span class="mute">${esc(i.mes)}</span></span><button class="sec" onclick="del('incentivos',${i.id})">Borrar</button></div>`).join('')}[tab]();
-  app.innerHTML=`<div class="top"><h1>Administración</h1><button class="sec" onclick="out()">Salir</button></div>
-  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';drawAdmin()">${n}</button>`).join('')}</div>${v}
-  <h2>Ranking actual</h2><div class="card">${D.ranking.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
+
+  app.innerHTML=`
+  ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay nuevos cambios en la operación!</span><button onclick="load()">Actualizar página</button></div>` : ''}
+  <div class="top">
+    <h1>Administración</h1>
+    <div style="display:flex;gap:6px">
+      <button class="sec" onclick="playTone('info');notify('🔊 Sonido activo','Alertas sonoras habilitadas.','info')">🔔 Probar sonido</button>
+      <button class="sec" onclick="out()">Salir</button>
+    </div>
+  </div>
+  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
+  ${v}
+  <div class="row" style="margin:28px 0 10px">
+    <h2 style="margin:0">Ranking actual</h2>
+    <div class="seg-switch" style="margin:0">
+      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+    </div>
+  </div>
+  <div class="card">${rkFiltrado.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)} ${equipoLabel(getEquipo(x.nombre))}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
   if(tab==='dia')avisoFecha();
 }
+
+// ---------- Admin: Gestión de Misiones y Retos ----------
+function adminMisionesView(){
+  return `<div class="card">
+    <h3 style="margin-bottom:8px">Crear nueva misión o reto</h3>
+    <input id="m-tit" placeholder="Nombre de la misión (ej: Cero recontactos hoy)">
+    <textarea id="m-desc" rows="2" placeholder="Descripción o reglas del reto"></textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label style="font-size:.85rem">Puntos que otorga</label><input id="m-pts" type="number" placeholder="Ej: 10"></div>
+      <div><label style="font-size:.85rem">Disponible hasta (fecha y hora)</label><input id="m-lim" type="datetime-local"></div>
+    </div>
+    <button onclick="crearMision()">Publicar misión</button>
+  </div>
+  <h2>Misiones activas y validación de evidencias</h2>
+  ${MISIONES.length ? MISIONES.map(m => `
+    <div class="card reto-card">
+      <div class="row">
+        <div><b>${esc(m.titulo)}</b> <span class="tag aprobada">+${m.puntos} pts</span></div>
+        <button class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
+      </div>
+      <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · ⏳ ${esc(tiempoRestante(m.fecha_limite))}</p>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
+        <label style="font-size:.85rem">Validar cumplimiento (cuando el usuario te envíe la foto/evidencia):</label>
+        <div class="row">
+          <select id="m-usr-${m.id}" style="margin:0;flex:1">
+            ${D.usuarios.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}
+          </select>
+          <button onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
+        </div>
+        ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
+      </div>
+    </div>
+  `).join('') : '<p class="mute">No hay misiones creadas aún.</p>'}`;
+}
+
+async function crearMision(){
+  const titulo = $('#m-tit').value.trim();
+  const descripcion = $('#m-desc').value.trim();
+  const puntos = +$('#m-pts').value;
+  const limite = $('#m-lim').value ? new Date($('#m-lim').value).toISOString() : null;
+  if(!titulo || !puntos){ alert('Ingresa el nombre de la misión y los puntos'); return; }
+  await g('admin_crear_mision', {p_titulo:titulo, p_descripcion:descripcion, p_puntos:puntos, p_fecha_limite:limite});
+  notify('🚀 Misión publicada', `La misión "${titulo}" ya está visible para el equipo.`, 'success');
+}
+
+async function aprobarMision(misionId){
+  const ced = $('#m-usr-'+misionId).value;
+  if(!ced) return;
+  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced});
+  notify('🏆 Misión validada', 'Se sumaron los puntos al usuario y se habilitó su imagen de logro.', 'success');
+}
+
+// ---------- Admin: Puntos Negativos / Conducta ----------
+function adminNegativosView(){
+  const filtrados = adminFiltroEq==='global'
+    ? NEGATIVOS
+    : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === adminFiltroEq);
+
+  return `<div class="card neg-card">
+    <h3 style="margin-bottom:6px">Registrar alerta de conducta (No resta puntos)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}</select>
+      <select id="neg-tipo">
+        <option value="Mal lenguaje">Mal lenguaje</option>
+        <option value="Actitud grosera">Actitud grosera</option>
+        <option value="Comportamiento errado">Comportamiento errado</option>
+      </select>
+    </div>
+    <input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
+    <button class="coral" onclick="reportarNegativo(true)">Guardar alerta</button>
+  </div>
+  <div class="row" style="margin:12px 0">
+    <b>Reportes registrados</b>
+    <div class="seg-switch" style="margin:0">
+      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+    </div>
+  </div>
+  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">${esc(n.tipo)}</span></span><button class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Por: ${esc(n.reportado_por||'Anónimo')} · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
+}
+
 const fdl=f=>{const p=f.split('-');return p[2]+'/'+p[1]+'/'+p[0]};
 function fechas(){
   if(!F)return '';
@@ -338,11 +840,25 @@ const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e
 const corto=n=>n.split(' ').slice(0,2).join(' ');
 function posView(){
   if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
-  const P=G.personas,ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
+  const P_ALL=G.personas;
+  const P = adminFiltroEq==='global' ? P_ALL : P_ALL.filter(p => getEquipo(p.nombre) === adminFiltroEq);
+  if(!P.length) return '<p class="mute">No hay integrantes en este equipo.</p>';
+
+  const ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
   const ord=ind.map((x,k)=>k).sort((a,b)=>{const pa=PRI.indexOf(ind[a].nombre.toLowerCase()),pb=PRI.indexOf(ind[b].nombre.toLowerCase());return (pa<0?99:pa)-(pb<0?99:pb)||a-b});
   const col=k=>PAL[ord.indexOf(k)%PAL.length],ip=(p,k)=>p.por_indicador[k].dias_ok*p.por_indicador[k].puntos;
   if(!selP||!P.find(p=>p.cedula===selP))selP=P[0].cedula;
   const perfect=ind.reduce((a,x)=>a+x.puntos,0);
+
+  const filtroBar = `<div class="row" style="margin-bottom:12px">
+    <h2 style="margin:0">¿Por qué cada persona está en su puesto?</h2>
+    <div class="seg-switch" style="margin:0">
+      <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
+      <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
+      <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
+    </div>
+  </div>`;
+
   const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Atenciones increíbles</b><span class="mute">Cada postulación aprobada suma 7 pts directos al ranking del mes.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
   const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
   const bars=P.map((p,j)=>`<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`).join('');
@@ -355,10 +871,9 @@ function posView(){
     const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
     return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
   const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Pts</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días cumplidos</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
-   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b></td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
+   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre))}</td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
   const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
    +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
-  // detalle persona
   const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
   const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post);
   const sv=G.fechas.map((f,i)=>{const d=dm[f],x=30+i*stp,h=d?d.pts/Math.max(1,perfect)*(Hh-40):0;return `<rect x="${x}" y="${Hh-20-h}" width="${bw}" height="${Math.max(h,d?2:0)}" rx="2" fill="${d&&d.ok===d.total?GOLD:'#0e8f83'}"><title>${f}: ${d?d.pts+' pts · '+d.ok+' de '+d.total:'sin registros'}</title></rect><text x="${x+bw/2}" y="${Hh-6}" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6">${f.slice(8)}</text>`}).join('');
@@ -371,7 +886,7 @@ function posView(){
    <div class="cmpb"><span>Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × 7 = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
    <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
    <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
-  return `<h2>¿Por qué cada persona está en su puesto?</h2>${ex}
+  return `${filtroBar}${ex}
   <div class="card"><b>Cómo se compone el puntaje de cada persona</b>${leg}${bars}</div>
   <div class="card"><b>Detalle y motivo por puesto</b><p class="mute" style="margin:2px 0 8px">Días cumplidos de los días con registro, y qué tanto se separa cada persona de quien tiene arriba.</p>${tabla}</div>
   <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
@@ -379,7 +894,6 @@ function posView(){
 }
 // ---------- Usuario: pop-up lateral que explica cómo sumar ----------
 let popOpen=false;
-// ---------- Vista de usuario: misión, incentivos y indicadores llamativos ----------
 const dd=n=>n+(n===1?' día':' días');
 const perfectDay=()=>D.indicadores.reduce((a,x)=>a+x.puntos,0);
 function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
