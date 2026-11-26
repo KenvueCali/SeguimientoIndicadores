@@ -39,7 +39,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .tag.feedback,.tag.neg{background:var(--coral);color:#fff}
 .tag.eq-trad{background:#1e6091;color:#fff}
 .tag.eq-soc{background:var(--purple);color:#fff}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:8px 14px}
 .tabs button.on{background:var(--ink);color:#fff}
 .seg-switch{display:inline-flex;background:var(--bg);padding:4px;border-radius:10px;border:1px solid var(--line);gap:4px;margin-bottom:10px}
@@ -204,7 +204,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .ev-box b{color:var(--coral)}
 
 .neg-card{border-left:5px solid var(--coral)}
-.neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:800}
+.neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:3px 10px;border-radius:12px;font-size:.82rem;font-weight:800}
 </style>
 </head>
 <body>
@@ -216,16 +216,20 @@ const URL_='https://ucpifysuxxgyiyahfkgg.supabase.co';
 const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjcGlmeXN1eHhneWl5YWhma2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTA0NTQsImV4cCI6MjExMTE4NjQ1NH0.uYTSzRJ_hKwiovyTK-r6meRBnNCQeoKlIWADkM6ED6E';
 // ================================================================
 
-// ====== DEFINICIÓN DE EQUIPOS ======
+// ====== DEFINICIÓN DE EQUIPOS Y ASIGNACIONES EDITABLES ======
 const EQUIPOS = {
   tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
   social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
 };
+let ASIGNACIONES_EQ = JSON.parse(localStorage.getItem('eq_map') || '{}');
+
 function norm(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
 }
-function getEquipo(nombre){
+function getEquipo(nombre, cedula=''){
+  if(cedula && ASIGNACIONES_EQ[String(cedula)]) return ASIGNACIONES_EQ[String(cedula)];
   const n = norm(nombre);
+  if(n && ASIGNACIONES_EQ['nom:' + n]) return ASIGNACIONES_EQ['nom:' + n];
   if(EQUIPOS.tradicional.some(m => n.includes(m) || m.includes(n))) return 'tradicional';
   if(EQUIPOS.social.some(m => n.includes(m) || m.includes(n))) return 'social';
   return 'general';
@@ -280,7 +284,7 @@ const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
 let MISIONES=[], NEGATIVOS=[];
-let selP='', tab='post', msg='';
+let selP='', tab='post', userTab='resultados', msg='';
 let vistaRk='equipo';
 let vistaNeg='equipo';
 let adminFiltroEq='global';
@@ -300,6 +304,11 @@ async function loadExtras(){
   try{
     NEGATIVOS = await rpc('listar_negativos', {}) || [];
   }catch(e){ NEGATIVOS = []; }
+  try{
+    const eqRows = await rpc('listar_equipos', {}) || [];
+    eqRows.forEach(r => { if(r.cedula && r.equipo) ASIGNACIONES_EQ[String(r.cedula)] = r.equipo; });
+    localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
+  }catch(e){}
 }
 
 function buildSignature(d, h){
@@ -392,7 +401,7 @@ function draw(){app.className=S.a?'':'wide';S.a?drawAdmin():drawUser();S.a?popHi
 function ini(n){return n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
 function rankList(rk, showTeamBadge=false){
   const mx=rk[0]?rk[0].puntos:0,med=['🥇','🥈','🥉'];
-  return `<div class="card" style="padding:8px">${rk.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''} ${showTeamBadge?equipoLabel(getEquipo(x.nombre)):''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
+  return `<div class="card" style="padding:8px">${rk.map((x,j)=>`<div class="rl ${x.yo?'yo':''}"><span class="pos">${med[j]||j+1}</span><span class="av">${esc(ini(x.nombre))}</span><span><div class="nm2">${esc(x.nombre.split(' ').slice(0,2).join(' '))}${x.yo?' (tú)':''} ${showTeamBadge?equipoLabel(getEquipo(x.nombre, x.cedula)):''}</div><div class="bar"><i style="width:${mx?Math.round(x.puntos/mx*100):0}%"></i></div></span><span class="pt">${x.puntos} pts</span></div>`).join('')}</div>`;
 }
 function updTxt(){
   if(!H)return '';
@@ -402,9 +411,9 @@ function updTxt(){
   return `<div class="upd"><span>🕒 ${f?`Última actualización: <b>${esc(f)}</b>`:''}${f&&h?' · ':''}${h?`Resultados hasta el <b>${esc(h)}</b>`:''}</span><button class="sec" onclick="load()">Recargar</button></div>`;
 }
 function drawUser(){
-  const miEq = getEquipo(D.nombre);
+  const miEq = getEquipo(D.nombre, S.ced);
   const rkGlobal = D.ranking || [];
-  const rkEquipo = miEq==='general' ? rkGlobal : rkGlobal.filter(x => getEquipo(x.nombre) === miEq);
+  const rkEquipo = miEq==='general' ? rkGlobal : rkGlobal.filter(x => getEquipo(x.nombre, x.cedula) === miEq);
   const rkActivo = vistaRk === 'global' ? rkGlobal : rkEquipo;
 
   const iAct = rkActivo.findIndex(x=>x.yo);
@@ -413,6 +422,54 @@ function drawUser(){
   const pts = me ? me.puntos : 0;
   const em = iAct===0?'🏆':iAct===1?'🥈':iAct===2?'🥉':'💪';
   const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
+
+  const navUser = `<div class="tabs">
+    <button class="${userTab==='resultados'?'on':''}" onclick="userTab='resultados';drawUser()">📊 Resultados y Ranking</button>
+    <button class="${userTab==='misiones'?'on':''}" onclick="userTab='misiones';drawUser()">🚀 Misiones y Retos (${MISIONES.length})</button>
+    <button class="${userTab==='negativos'?'on':''}" onclick="userTab='negativos';drawUser()">⚠️ Mal comportamiento (${NEGATIVOS.length})</button>
+  </div>`;
+
+  let cuerpoUser = '';
+  if(userTab === 'misiones'){
+    cuerpoUser = `<div class="card">
+      <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
+      <p class="mute">Consulta las misiones activas, revisa el tiempo disponible y recuerda enviar tu evidencia al jefe al cumplirlas.</p>
+    </div>` + seccionRetosUsuario();
+  }else if(userTab === 'negativos'){
+    cuerpoUser = `<div class="card">
+      <h2 style="margin-top:0">⚠️ Tablero de Mal Comportamiento (Anónimo · 1 pt)</h2>
+      <p class="mute">Cada reporte registra <b>1 punto negativo informativo</b> de forma <b>anónima</b> y no resta puntos del ranking.</p>
+    </div>` + seccionNegativosUsuario(miEq);
+  }else{
+    cuerpoUser = `
+    <div class="lay">
+    <aside>
+      <div class="row" style="margin-bottom:6px">
+        <h2>🏆 Ranking</h2>
+        <div class="seg-switch" style="margin:0">
+          <button class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
+          <button class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
+        </div>
+      </div>
+      <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
+      ${podio(rkActivo)}${rankList(rkActivo, vistaRk==='global')}
+    </aside>
+    <section>
+    ${compet(rkActivo,iAct,pts)}
+    ${mision()}
+    <h2 class="shd">🎁 Incentivos activos <span class="tag">${D.incentivos.length}</span></h2>
+    ${incCards(pts)}
+    <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
+    <h2 class="shd">📅 Mis días</h2>${dias()}
+    <h2 id="postular" class="shd">✨ Postular una atención increíble</h2>
+    <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
+    <input id="nc" maxlength="60" placeholder="Número de caso">
+    <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
+    <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
+    ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
+    <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}
+    </section></div>`;
+  }
 
   app.innerHTML=`
   ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay una actualización disponible en el sistema! Recarga para ver los últimos cambios.</span><button onclick="load()">Actualizar página</button></div>` : ''}
@@ -435,35 +492,8 @@ function drawUser(){
     </div>
     <span class="em">${em}</span>
   </div>
-  <div class="lay">
-  <aside>
-    <div class="row" style="margin-bottom:6px">
-      <h2>🏆 Ranking</h2>
-      <div class="seg-switch" style="margin:0">
-        <button class="${vistaRk==='equipo'?'on':''}" onclick="vistaRk='equipo';drawUser()">${esc(nomEquipo)}</button>
-        <button class="${vistaRk==='global'?'on':''}" onclick="vistaRk='global';drawUser()">Global</button>
-      </div>
-    </div>
-    <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
-    ${podio(rkActivo)}${rankList(rkActivo, vistaRk==='global')}
-  </aside>
-  <section>
-  ${compet(rkActivo,iAct,pts)}
-  ${mision()}
-  ${seccionRetosUsuario()}
-  <h2 class="shd">🎁 Incentivos activos <span class="tag">${D.incentivos.length}</span></h2>
-  ${incCards(pts)}
-  <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
-  <h2 class="shd">📅 Mis días</h2>${dias()}
-  <h2 id="postular" class="shd">✨ Postular una atención increíble</h2>
-  <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
-  <input id="nc" maxlength="60" placeholder="Número de caso">
-  <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
-  <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
-  ${D.postulaciones.map(p=>`<div class="card"><div class="row"><span class="mute">${new Date(p.creada).toLocaleDateString('es')}</span><span class="tag ${p.estado}">${p.estado==='aprobada'?'Aprobada +'+p.puntos+' pts':p.estado==='feedback'?'Con feedback':'En revisión'}</span></div>
-  <p class="mute">Caso ${esc(p.numero_caso||'sin número')}</p><p>${esc(p.descripcion)}</p>${p.feedback?`<p><b>Feedback:</b> ${esc(p.feedback)}</p>`:''}${p.compromiso?`<p><b>Compromiso:</b> ${esc(p.compromiso)}</p>`:''}</div>`).join('')}
-  ${seccionNegativosUsuario(miEq)}
-  </section></div>`;
+  ${navUser}
+  ${cuerpoUser}`;
 }
 
 // ---------- Misiones y Retos (Usuario) ----------
@@ -477,9 +507,8 @@ function tiempoRestante(fechaLimite){
   return `Disponible por ${hrs}h ${mins}m`;
 }
 function seccionRetosUsuario(){
-  if(!MISIONES || !MISIONES.length) return '';
-  return `<h2 class="shd">🚀 Misiones y Retos especiales <span class="tag">${MISIONES.length}</span></h2>` +
-  MISIONES.map(m => {
+  if(!MISIONES || !MISIONES.length) return '<div class="card"><p class="mute" style="margin:0">No hay misiones activas en este momento.</p></div>';
+  return MISIONES.map(m => {
     const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
     const completada = !!m.completada;
     return `<div class="card reto-card ${completada?'done':''}">
@@ -549,7 +578,7 @@ async function copiarImagenLogro(tituloMision, puntos){
 
     ctx.fillStyle = '#e3f6f3';
     ctx.font = '22px system-ui, sans-serif';
-    ctx.fillText(`Equipo: ${getEquipo(D.nombre).toUpperCase()} · ${new Date().toLocaleDateString('es')}`, 340, 366);
+    ctx.fillText(`Equipo: ${getEquipo(D.nombre, S.ced).toUpperCase()} · ${new Date().toLocaleDateString('es')}`, 340, 366);
 
     canvas.toBlob(async blob => {
       try{
@@ -568,7 +597,7 @@ async function copiarImagenLogro(tituloMision, puntos){
   }
 }
 
-// ---------- Puntos Negativos / Reportes de Conducta (No restan puntos) ----------
+// ---------- Tablero de Mal Comportamiento (Anónimo · Solo 1 punto · No resta puntos) ----------
 function seccionNegativosUsuario(miEq){
   const todos = D.ranking || [];
   const filtrados = vistaNeg === 'global'
@@ -580,15 +609,14 @@ function seccionNegativosUsuario(miEq){
     conteo[n.reportado_nombre] = (conteo[n.reportado_nombre] || 0) + 1;
   });
 
-  return `<h2 class="shd">⚠️ Alertas de conducta / Puntos negativos <span class="tag neg">No restan puntos</span></h2>
-  <div class="card neg-card">
-    <p class="mute" style="margin-top:0">Espacio para registrar llamados de atención por mal lenguaje, groserías o comportamientos errados. <b>Estos reportes son informativos y no restan puntos en el ranking.</b></p>
+  return `<div class="card neg-card">
+    <p class="mute" style="margin-top:0">Envío <b>100% anónimo</b>. Cada registro suma <b>1 punto negativo</b> informativo por mal lenguaje, grosería o comportamiento errado y <b>no resta puntos</b> del ranking.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div>
         <label style="font-size:.85rem">Persona</label>
         <select id="neg-per">
-          <option value="">Selecciona un compañero...</option>
-          ${todos.map(u => `<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}
+          <option value="">Selecciona una persona...</option>
+          ${todos.map(u => `<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
         </select>
       </div>
       <div>
@@ -601,20 +629,20 @@ function seccionNegativosUsuario(miEq){
       </div>
     </div>
     <input id="neg-mot" maxlength="300" placeholder="Describe brevemente lo sucedido">
-    <button class="coral" onclick="reportarNegativo(false)">Registrar alerta de conducta</button>
+    <button class="coral" onclick="reportarNegativo(false)">Enviar reporte anónimo (1 pt)</button>
   </div>
 
   <div class="row" style="margin:12px 0 8px">
-    <b>Historial de comportamiento (${vistaNeg==='global'?'Global Operación':'Mi Equipo'})</b>
+    <b>Tablero de conducta (${vistaNeg==='global'?'Global Operación':'Mi Equipo'})</b>
     <div class="seg-switch" style="margin:0">
       <button class="${vistaNeg==='equipo'?'on':''}" onclick="vistaNeg='equipo';drawUser()">Mi Equipo</button>
       <button class="${vistaNeg==='global'?'on':''}" onclick="vistaNeg='global';drawUser()">Global</button>
     </div>
   </div>
-  ${Object.keys(conteo).length ? `<div class="card" style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(conteo).sort((a,b)=>b[1]-a[1]).map(([nom,cnt])=>`<span class="neg-badge">${esc(corto(nom))}: ${cnt} ${cnt===1?'alerta':'alertas'}</span>`).join('')}</div></div>` : ''}
+  ${Object.keys(conteo).length ? `<div class="card" style="padding:10px 14px"><div style="display:flex;flex-wrap:wrap;gap:8px">${Object.entries(conteo).sort((a,b)=>b[1]-a[1]).map(([nom,cnt])=>`<span class="neg-badge">${esc(corto(nom))}: ${cnt} ${cnt===1?'pt':'pts'}</span>`).join('')}</div></div>` : ''}
   ${filtrados.length
-    ? filtrados.map(n=>`<div class="card" style="padding:12px"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))}</span><span class="tag neg">${esc(n.tipo)}</span></div><p style="margin:6px 0 2px">${esc(n.motivo)}</p><span class="mute" style="font-size:.8rem">Reportado por ${esc(n.reportado_por||'Anónimo')} · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('')
-    : '<p class="mute">Sin reportes de mal comportamiento en esta vista.</p>'
+    ? filtrados.map(n=>`<div class="card" style="padding:12px"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span></span><span class="tag">${esc(n.tipo)}</span></div><p style="margin:6px 0 2px">${esc(n.motivo)}</p><span class="mute" style="font-size:.8rem">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('')
+    : '<p class="mute">Sin registros en esta vista.</p>'
   }`;
 }
 
@@ -629,9 +657,9 @@ async function reportarNegativo(esAdmin){
       p_reportado_nombre: per,
       p_tipo: tipo,
       p_motivo: mot,
-      p_reportado_por: esAdmin ? 'Administrador' : D.nombre
+      p_reportado_por: null
     });
-    notify('⚠️ Alerta registrada', `Se registró la alerta de conducta para ${per}.`, 'warn');
+    notify('⚠️ Registro anónimo guardado', `Se añadió 1 punto negativo informativo para ${per}.`, 'warn');
     await load();
   }catch(e){ alert(e.message); }
 }
@@ -722,16 +750,29 @@ async function guardarInc(){
   await g('admin_incentivo', payload);
 }
 
+// ---------- Edición de Equipo por Persona (Admin) ----------
+async function cambiarEquipoPersona(ced, nombre){
+  const eq = $('#eq-' + ced).value;
+  ASIGNACIONES_EQ[String(ced)] = eq;
+  ASIGNACIONES_EQ['nom:' + norm(nombre)] = eq;
+  localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
+  try{
+    await rpc('admin_usuario_equipo', {p_admin: S.clave, p_ced: String(ced), p_equipo: eq});
+  }catch(e){}
+  notify('👥 Equipo actualizado', `${nombre} ahora pertenece a ${eq.toUpperCase()}.`, 'success');
+  drawAdmin();
+}
+
 // ---------- Vista del administrador ----------
 const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones y Retos',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
   const rkFiltrado = adminFiltroEq==='global'
     ? D.ranking
-    : D.ranking.filter(x => getEquipo(x.nombre) === adminFiltroEq);
+    : D.ranking.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
   const v={
   pos:()=>posView(),
-  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
+  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
     <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar 7 puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
@@ -740,7 +781,21 @@ function drawAdmin(){
     <textarea id="lt" rows="8" placeholder="1012345678,Calidad,1"></textarea><button onclick="lote()">Guardar</button> <span class="ok" id="lm"></span></div>`+fechas(),
   per:()=>`<div class="card"><input id="uc" placeholder="Cédula"><input id="un" placeholder="Nombre"><input id="uk" placeholder="Clave (vacía = no cambiar)">
     <button onclick="g('admin_usuario',{p_ced:$('#uc').value.trim(),p_nombre:$('#un').value.trim(),p_clave:$('#uk').value})">Guardar persona</button></div>`
-    +D.usuarios.map(u=>`<div class="card row"><span>${esc(u.nombre)} ${equipoLabel(getEquipo(u.nombre))} <span class="mute">${esc(u.cedula)}</span></span><button class="sec" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button></div>`).join(''),
+    +D.usuarios.map(u=>{
+      const eqAct = getEquipo(u.nombre, u.cedula);
+      return `<div class="card row">
+        <div><b>${esc(u.nombre)}</b> ${equipoLabel(eqAct)} <span class="mute">${esc(u.cedula)}</span></div>
+        <div class="row" style="gap:6px">
+          <select id="eq-${esc(u.cedula)}" style="width:auto;margin:0;padding:6px 10px">
+            <option value="tradicional" ${eqAct==='tradicional'?'selected':''}>Tradicional</option>
+            <option value="social" ${eqAct==='social'?'selected':''}>Social</option>
+            <option value="general" ${eqAct==='general'?'selected':''}>Operación</option>
+          </select>
+          <button class="sec" onclick="cambiarEquipoPersona('${esc(u.cedula)}','${esc(u.nombre).replace(/'/g,"\\'")}')">Guardar equipo</button>
+          <button class="sec" style="color:var(--coral)" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button>
+        </div>
+      </div>`;
+    }).join(''),
   ind:()=>`<div class="card">
     <h3 style="margin-bottom:8px">${editIndId ? 'Editar indicador #' + editIndId : 'Nuevo indicador'}</h3>
     <input id="in" placeholder="Nombre del indicador">
@@ -791,7 +846,7 @@ function drawAdmin(){
       <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
   </div>
-  <div class="card">${rkFiltrado.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)} ${equipoLabel(getEquipo(x.nombre))}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
+  <div class="card">${rkFiltrado.map((x,j)=>`<div class="rk"><span class="n">${j+1}</span><span>${esc(x.nombre)} ${equipoLabel(getEquipo(x.nombre, x.cedula))}</span><span>${x.puntos} pts</span></div>`).join('')}</div>`;
   if(tab==='dia')avisoFecha();
 }
 
@@ -819,7 +874,7 @@ function adminMisionesView(){
         <label style="font-size:.85rem">Validar cumplimiento (cuando el usuario te envíe la foto/evidencia):</label>
         <div class="row">
           <select id="m-usr-${m.id}" style="margin:0;flex:1">
-            ${D.usuarios.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}
+            ${D.usuarios.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
           </select>
           <button onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
         </div>
@@ -846,16 +901,16 @@ async function aprobarMision(misionId){
   notify('🏆 Misión validada', 'Se sumaron los puntos al usuario y se habilitó su imagen de logro.', 'success');
 }
 
-// ---------- Admin: Puntos Negativos / Conducta ----------
+// ---------- Admin: Tablero Anónimo de Conducta (Solo 1 punto) ----------
 function adminNegativosView(){
   const filtrados = adminFiltroEq==='global'
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === adminFiltroEq);
 
   return `<div class="card neg-card">
-    <h3 style="margin-bottom:6px">Registrar alerta de conducta (No resta puntos)</h3>
+    <h3 style="margin-bottom:6px">Registrar alerta anónima de conducta (1 pt · No resta puntos)</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre)})</option>`).join('')}</select>
+      <select id="neg-per">${D.usuarios.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select>
       <select id="neg-tipo">
         <option value="Mal lenguaje">Mal lenguaje</option>
         <option value="Actitud grosera">Actitud grosera</option>
@@ -863,17 +918,17 @@ function adminNegativosView(){
       </select>
     </div>
     <input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
-    <button class="coral" onclick="reportarNegativo(true)">Guardar alerta</button>
+    <button class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
   </div>
   <div class="row" style="margin:12px 0">
-    <b>Reportes registrados</b>
+    <b>Tablero de conducta registrado</b>
     <div class="seg-switch" style="margin:0">
       <button class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
       <button class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
       <button class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
   </div>
-  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">${esc(n.tipo)}</span></span><button class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Por: ${esc(n.reportado_por||'Anónimo')} · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
+  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span> <span class="tag">${esc(n.tipo)}</span></span><button class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
 }
 
 const fdl=f=>{const p=f.split('-');return p[2]+'/'+p[1]+'/'+p[0]};
@@ -898,7 +953,7 @@ const corto=n=>n.split(' ').slice(0,2).join(' ');
 function posView(){
   if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
   const P_ALL=G.personas;
-  const P = adminFiltroEq==='global' ? P_ALL : P_ALL.filter(p => getEquipo(p.nombre) === adminFiltroEq);
+  const P = adminFiltroEq==='global' ? P_ALL : P_ALL.filter(p => getEquipo(p.nombre, p.cedula) === adminFiltroEq);
   if(!P.length) return '<p class="mute">No hay integrantes en este equipo.</p>';
 
   const ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
@@ -928,7 +983,7 @@ function posView(){
     const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
     return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
   const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Pts</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días cumplidos</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
-   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre))}</td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
+   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
   const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
    +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
   const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
@@ -1007,7 +1062,7 @@ function popShow(){
 function popTz(){sessionStorage.setItem('pz','1');const t=document.getElementById('tz');if(t)t.remove()}
 function popOpenF(){popTz();popOpen=true;document.getElementById('ov').classList.add('on');const d=document.getElementById('dw');d.classList.add('on');d.querySelector('.cl').focus()}
 function popClose(){popOpen=false;const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.classList.remove('on');if(d)d.classList.remove('on')}
-function popPost(){popClose();const h=document.getElementById('postular');if(h)h.scrollIntoView({behavior:'smooth'});setTimeout(()=>{const n=document.getElementById('nc');if(n)n.focus()},500)}
+function popPost(){popClose();userTab='resultados';drawUser();const h=document.getElementById('postular');if(h)h.scrollIntoView({behavior:'smooth'});setTimeout(()=>{const n=document.getElementById('nc');if(n)n.focus()},500)}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()});
 
 async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
