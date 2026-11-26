@@ -37,6 +37,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .mute{color:var(--mute);font-size:.92rem}
 .tag{font-size:.78rem;padding:2px 9px;border-radius:20px;background:var(--line);display:inline-block;font-weight:600}
 .tag.aprobada{background:var(--gold);color:#222}
+.tag.rechazada{background:var(--coral);color:#fff}
 .tag.pendiente{background:rgba(124,77,255,.16);color:var(--purple);border:1px solid rgba(124,77,255,.35)}
 .tag.aceptada{background:rgba(14,143,131,.16);color:var(--teal);border:1px solid rgba(14,143,131,.35)}
 .tag.oblig{background:rgba(214,84,63,.16);color:var(--coral);border:1px solid rgba(214,84,63,.45)}
@@ -608,7 +609,7 @@ function buildSignature(d, h, mis, vals){
   const pend = ((d && d.pendientes) || []).map(p=>`${p.id}`).join(',');
   const upd = h && h.actualizado ? h.actualizado : '';
   const rk = ((d && d.ranking) || []).map(r=>`${r.nombre}:${r.puntos}`).join('|');
-  const mSig = (mis||[]).map(m=>`${m.id}:${(m.pendientes_validacion||[]).map(x=>x.cedula).join(',')}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
+  const mSig = (mis||[]).map(m=>`${m.id}:${m.estado_usuario||''}:${(m.pendientes_validacion||[]).map(x=>x.cedula).join(',')}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
   const vSig = (vals||[]).map(v=>`${v.incentivo_id}:${v.cedula}:${v.estado}`).join('|');
   return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}`;
 }
@@ -630,6 +631,7 @@ function detectarYNotificarCambios(prevState, nextState){
       }else{
         const oldM = (prevState.misiones || []).find(x => String(x.id) === String(m.id));
         const fueAprobada = (!oldM || !oldM.completada) && !!m.completada;
+        const fueRechazada = (!oldM || oldM.estado_usuario !== 'rechazada') && m.estado_usuario === 'rechazada';
         if(fueAprobada){
           notify(
             '🏅 ¡Misión validada!',
@@ -637,6 +639,15 @@ function detectarYNotificarCambios(prevState, nextState){
             'success',
             '',
             `mis-val-${m.id}`
+          );
+        }else if(fueRechazada){
+          setEstadoLocalMision(m.id, 'rechazada');
+          notify(
+            '❌ Misión rechazada',
+            `Tu solicitud en "${m.titulo}" fue rechazada y la misión quedó cerrada.`,
+            'warn',
+            '',
+            `mis-rej-${m.id}`
           );
         }
       }
@@ -674,22 +685,20 @@ function detectarYNotificarCambios(prevState, nextState){
       const res = resolverDatosUsuario(pv.cedula, pv.nombre);
       prevMisPend.add(`${m.id}:${res.cedula || norm(res.nombre)}`);
     }));
-    (nextState.misiones || []).forEach(m => {
-      (m.pendientes_validacion || []).forEach(pv => {
-        const res = resolverDatosUsuario(pv.cedula, pv.nombre);
-        const key = `${m.id}:${res.cedula || norm(res.nombre)}`;
-        if(!prevMisPend.has(key)){
-          notify(
-            `🚀 Solicitud de ${res.nombre}`,
-            `CC ${res.cedula || 'N/A'} marcó "${m.titulo}" para validación del líder.`,
-            'alert',
-            `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
-            `adm-mis-${m.id}-${res.cedula || norm(res.nombre)}`,
-            20000
-          );
-        }
-      });
-    });
+    (nextState.misiones || []).forEach(m => (m.pendientes_validacion || []).forEach(pv => {
+      const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+      const key = `${m.id}:${res.cedula || norm(res.nombre)}`;
+      if(!prevMisPend.has(key)){
+        notify(
+          `🚀 Solicitud de ${res.nombre}`,
+          `CC ${res.cedula || 'N/A'} marcó "${m.titulo}" para validación del líder.`,
+          'alert',
+          `<button type="button" class="gold" onclick="bellOpen=true;drawAdmin()">Validar en campana</button>`,
+          `adm-mis-${m.id}-${res.cedula || norm(res.nombre)}`,
+          20000
+        );
+      }
+    }));
 
     const prevValPend = new Set((prevState.vals || []).filter(v => v.estado === 'pendiente').map(v => `${v.incentivo_id}:${v.cedula}`));
     (nextState.vals || []).filter(v => v.estado === 'pendiente').forEach(v => {
@@ -855,12 +864,12 @@ function setupRealtime(){
     if(!S || S.a) return;
     if(payload?.cedula && String(payload.cedula) !== String(S.ced)) return;
     if(payload?.mision_id){
-      setEstadoLocalMision(payload.mision_id, payload.aprobada ? 'aprobada' : 'aceptada');
+      setEstadoLocalMision(payload.mision_id, payload.aprobada ? 'aprobada' : 'rechazada');
     }
     notify(
-      payload?.aprobada ? '✅ ¡Validación aprobada!' : '💬 Actualización de validación',
-      payload?.mensaje || 'El administrador actualizó el estado de tu solicitud.',
-      payload?.aprobada ? 'success' : 'info',
+      payload?.aprobada ? '✅ ¡Validación aprobada!' : '❌ Misión rechazada',
+      payload?.mensaje || (payload?.aprobada ? 'El administrador aprobó tu misión.' : 'El administrador rechazó tu solicitud y cerró la misión.'),
+      payload?.aprobada ? 'success' : 'warn',
       '',
       `evt-val-${payload?.cedula || S.ced}-${payload?.mision_id || ''}-${payload?.aprobada ? '1' : '0'}`
     );
@@ -1023,7 +1032,7 @@ function drawUser(){
   const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
   const cantDias = (H && H.dias && H.dias.length) ? H.dias.length : 0;
   const misionesVisibles = getMisionesVisiblesUsuario();
-  const obligPendientes = misionesVisibles.filter(m => m.obligatoria && !m.completada && m._est !== 'pendiente').length;
+  const obligPendientes = misionesVisibles.filter(m => m.obligatoria && !m.completada && m._est !== 'rechazada' && m._est !== 'pendiente').length;
   const insigniasGanadas = getInsigniasGanadasUsuario();
 
   const navUser = `<div class="tabs">
@@ -1152,21 +1161,22 @@ function seccionRetosUsuario(){
   return lista.map(m => {
     const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
     const completada = m._est === 'aprobada' || !!m.completada;
-    const pendienteVal = !completada && m._est === 'pendiente';
-    const aceptada = !completada && !pendienteVal && (m._est === 'aceptada' || m.obligatoria);
-    const cardCls = completada ? 'done' : m.obligatoria ? 'oblig-card' : aceptada ? 'accepted' : '';
+    const rechazada = !completada && m._est === 'rechazada';
+    const pendienteVal = !completada && !rechazada && m._est === 'pendiente';
+    const aceptada = !completada && !rechazada && !pendienteVal && (m._est === 'aceptada' || m.obligatoria);
+    const cardCls = completada ? 'done' : rechazada ? 'oblig-card' : m.obligatoria ? 'oblig-card' : aceptada ? 'accepted' : '';
 
     return `<div class="card reto-card ${cardCls}">
       <div class="row">
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
-          <span class="tag ${completada?'aprobada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">+${m.puntos} pts</span>
+          <span class="tag ${completada?'aprobada':rechazada?'rechazada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">${rechazada ? 'Rechazada' : '+' + m.puntos + ' pts'}</span>
           <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria
             ? '<span class="tag oblig" style="margin-left:4px">🔒 Misión obligatoria</span>'
             : '<span class="tag" style="margin-left:4px">Opcional</span>'}
         </div>
-        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
+        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${rechazada ? 'Misión cerrada' : esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
@@ -1178,6 +1188,11 @@ function seccionRetosUsuario(){
                <span class="ok">✔ ¡Misión completada y validada! Insignia ganada: <b>${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</b></span>
                <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(m.titulo)}, ${Number(m.puntos)||0}, ${jsArg(m.insignia_icono)}, ${jsArg(m.insignia_nombre)})'>📤 Compartir imagen de logro</button>
              </div>`
+          : rechazada
+            ? `<div class="row">
+                 <span class="tag neg">❌ Rechazada</span>
+                 <span class="mute">Misión cerrada por el administrador.</span>
+               </div>`
           : pendienteVal
             ? `<span class="tag pendiente">⏳ Completada · Esperando validación del líder</span>`
             : exp
@@ -2142,12 +2157,12 @@ async function aprobarMisionDirecto(misionId, ced, aprobar, nombreHint=''){
   await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:res.cedula, p_aprobar:aprobar});
   broadcastEvent('validacion_resuelta', {
     cedula: res.cedula, mision_id: misionId, aprobada: aprobar,
-    mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud de misión fue devuelta para revisión.'
+    mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud fue rechazada y la misión quedó cerrada.'
   });
   if(aprobar){
     notify('🏆 Aprobada: ' + res.nombre, `Se validó el cumplimiento de ${res.nombre} (CC ${res.cedula}).`, 'success', '', `apr-mis-${misionId}-${res.cedula}`);
   }else{
-    notify('↩ Rechazada: ' + res.nombre, `Se devolvió la solicitud de ${res.nombre} (CC ${res.cedula}).`, 'warn', '', `rej-mis-${misionId}-${res.cedula}`);
+    notify('❌ Rechazada: ' + res.nombre, `Se rechazó la solicitud de ${res.nombre} (CC ${res.cedula}) y se cerró la misión.`, 'warn', '', `rej-mis-${misionId}-${res.cedula}`);
   }
 }
 
