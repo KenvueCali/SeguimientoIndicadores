@@ -187,7 +187,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .err{color:var(--coral);font-weight:600;min-height:1.4em}
 .ok{color:var(--teal);font-weight:600}
 
-/* Notificaciones Toast con sonido */
 #toast-box{position:fixed;top:16px;right:16px;z-index:120;display:flex;flex-direction:column;gap:8px;max-width:360px;width:calc(100vw - 32px)}
 .toast{background:var(--ink);color:#fff;border-left:5px solid var(--gold);border-radius:10px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;animation:slideIn .3s ease}
 .toast.ok-t{border-left-color:var(--teal)}
@@ -196,17 +195,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .toast .cls{background:none;color:#b9c7d6;padding:0 4px;font-size:1.2rem;margin:0}
 @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
 
-/* Banner de actualización pendiente */
 .upd-alert{background:linear-gradient(135deg,var(--gold),#f3b83a);color:#222;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;box-shadow:0 4px 14px rgba(224,165,38,.35)}
 .upd-alert button{background:var(--ink);color:#fff;padding:6px 14px;font-size:.88rem}
 
-/* Misiones y Retos */
 .reto-card{border-left:5px solid var(--purple)}
 .reto-card.done{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.12),var(--card))}
 .ev-box{background:rgba(214,84,63,.12);border:1px solid var(--coral);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.88rem;color:var(--ink)}
 .ev-box b{color:var(--coral)}
 
-/* Puntos Negativos / Conducta */
 .neg-card{border-left:5px solid var(--coral)}
 .neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:800}
 </style>
@@ -285,9 +281,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
 let MISIONES=[], NEGATIVOS=[];
 let selP='', tab='post', msg='';
-let vistaRk='equipo'; // 'equipo' | 'global'
-let vistaNeg='equipo'; // 'equipo' | 'global'
-let adminFiltroEq='global'; // 'global' | 'tradicional' | 'social'
+let vistaRk='equipo';
+let vistaNeg='equipo';
+let adminFiltroEq='global';
+let editIndId=null, editIncId=null;
 let hayActualizacion=false, pollTimer=null, lastSignature=null;
 
 async function rpc(fn,body){
@@ -296,7 +293,6 @@ async function rpc(fn,body){
   if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
 }
 
-// Carga datos complementarios (Misiones y Puntos Negativos) desde Supabase RPC
 async function loadExtras(){
   try{
     MISIONES = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced}) || [];
@@ -317,7 +313,6 @@ function buildSignature(d, h){
 function checkChanges(prevD, newD, newH){
   if(!prevD) return;
   if(!S.a){
-    // Detectar respuesta a postulación del usuario
     const oldMap = {};
     (prevD.postulaciones||[]).forEach(p=>oldMap[p.id]=p.estado);
     (newD.postulaciones||[]).forEach(p=>{
@@ -330,7 +325,6 @@ function checkChanges(prevD, newD, newH){
       }
     });
   }else{
-    // Detectar nuevas postulaciones en admin
     if((newD.pendientes||[]).length > (prevD.pendientes||[]).length){
       notify('📩 Nueva postulación recibida', 'Un integrante envió una atención para revisión.', 'alert');
     }
@@ -503,7 +497,7 @@ function seccionRetosUsuario(){
       <div class="row" style="margin-top:8px">
         ${completada
           ? `<span class="ok">✔ ¡Misión completada y validada!</span>
-             <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo)}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>`
+             <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>`
           : exp
             ? `<span class="mute">Esta misión ya expiró.</span>`
             : `<span class="mute">Envía tu evidencia al jefe para desbloquear tu insignia.</span>`
@@ -513,26 +507,22 @@ function seccionRetosUsuario(){
   }).join('');
 }
 
-// Genera imagen en Canvas y la copia al portapapeles para compartir logro
 async function copiarImagenLogro(tituloMision, puntos){
   try{
     const canvas = document.createElement('canvas');
     canvas.width = 900; canvas.height = 480;
     const ctx = canvas.getContext('2d');
 
-    // Fondo degradado
     const grad = ctx.createLinearGradient(0, 0, 900, 480);
     grad.addColorStop(0, '#0f2a43');
     grad.addColorStop(1, '#0e8f83');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 900, 480);
 
-    // Marco dorado
     ctx.strokeStyle = '#e0a526';
     ctx.lineWidth = 10;
     ctx.strokeRect(24, 24, 852, 432);
 
-    // Textos
     ctx.fillStyle = '#e0a526';
     ctx.font = 'bold 28px system-ui, sans-serif';
     ctx.fillText('🏆 MISIÓN CUMPLIDA · OPERACIÓN', 60, 88);
@@ -549,7 +539,6 @@ async function copiarImagenLogro(tituloMision, puntos){
     ctx.font = 'bold 34px system-ui, sans-serif';
     ctx.fillText(`"${tituloMision}"`, 60, 278);
 
-    // Pill de puntos
     ctx.fillStyle = '#e0a526';
     ctx.beginPath();
     ctx.roundRect(60, 325, 250, 64, 32);
@@ -567,7 +556,6 @@ async function copiarImagenLogro(tituloMision, puntos){
         await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
         notify('📋 ¡Imagen copiada!', 'Pégala (Ctrl+V) en tu chat o grupo para compartir tu logro.', 'success');
       }catch(err){
-        // Fallback: descargar imagen si el navegador bloquea clipboard de imágenes
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `logro-${norm(tituloMision)}.png`;
@@ -587,7 +575,6 @@ function seccionNegativosUsuario(miEq){
     ? NEGATIVOS
     : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === miEq);
 
-  // Agrupar conteo por persona
   const conteo = {};
   filtrados.forEach(n => {
     conteo[n.reportado_nombre] = (conteo[n.reportado_nombre] || 0) + 1;
@@ -688,6 +675,53 @@ async function postular(){
   }catch(e){alert(e.message)}
 }
 
+// ---------- Edición de Indicadores e Incentivos ----------
+function editarInd(id, nombre, puntos){
+  editIndId = id;
+  drawAdmin();
+  $('#in').value = nombre;
+  $('#ip').value = puntos;
+  $('#in').focus();
+}
+function limpiarInd(){
+  editIndId = null;
+  drawAdmin();
+}
+async function guardarInd(){
+  const nombre = $('#in').value.trim();
+  const puntos = +$('#ip').value;
+  if(!nombre){ alert('Ingresa el nombre del indicador'); return; }
+  const payload = editIndId
+    ? {p_id: editIndId, p_nombre: nombre, p_puntos: puntos}
+    : {p_nombre: nombre, p_puntos: puntos};
+  editIndId = null;
+  await g('admin_indicador', payload);
+}
+
+function editarInc(id, nombre, premio, meta){
+  editIncId = id;
+  drawAdmin();
+  $('#xn').value = nombre;
+  $('#xp').value = premio;
+  $('#xm').value = meta;
+  $('#xn').focus();
+}
+function limpiarInc(){
+  editIncId = null;
+  drawAdmin();
+}
+async function guardarInc(){
+  const nombre = $('#xn').value.trim();
+  const premio = $('#xp').value.trim();
+  const meta = +$('#xm').value;
+  if(!nombre || !premio){ alert('Ingresa el nombre y el premio del incentivo'); return; }
+  const payload = editIncId
+    ? {p_id: editIncId, p_nombre: nombre, p_premio: premio, p_meta: meta}
+    : {p_nombre: nombre, p_premio: premio, p_meta: meta};
+  editIncId = null;
+  await g('admin_incentivo', payload);
+}
+
 // ---------- Vista del administrador ----------
 const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones y Retos',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
@@ -707,12 +741,36 @@ function drawAdmin(){
   per:()=>`<div class="card"><input id="uc" placeholder="Cédula"><input id="un" placeholder="Nombre"><input id="uk" placeholder="Clave (vacía = no cambiar)">
     <button onclick="g('admin_usuario',{p_ced:$('#uc').value.trim(),p_nombre:$('#un').value.trim(),p_clave:$('#uk').value})">Guardar persona</button></div>`
     +D.usuarios.map(u=>`<div class="card row"><span>${esc(u.nombre)} ${equipoLabel(getEquipo(u.nombre))} <span class="mute">${esc(u.cedula)}</span></span><button class="sec" onclick="del('usuarios','${esc(u.cedula)}')">Borrar</button></div>`).join(''),
-  ind:()=>`<div class="card"><input id="in" placeholder="Nombre del indicador"><input id="ip" type="number" placeholder="Puntos por día cumplido">
-    <button onclick="g('admin_indicador',{p_nombre:$('#in').value.trim(),p_puntos:+$('#ip').value})">Guardar indicador</button></div>`
-    +D.indicadores.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${i.puntos} pts</span><button class="sec" onclick="del('indicadores',${i.id})">Borrar</button></div>`).join(''),
-  inc:()=>`<div class="card"><p class="mute">Se crean para el mes actual (${esc(D.mes)}).</p><input id="xn" placeholder="Nombre"><input id="xp" placeholder="Premio"><input id="xm" type="number" placeholder="Meta de puntos">
-    <button onclick="g('admin_incentivo',{p_nombre:$('#xn').value.trim(),p_premio:$('#xp').value.trim(),p_meta:+$('#xm').value})">Crear incentivo</button></div>`
-    +D.incentivos.map(i=>`<div class="card row"><span>${esc(i.nombre)} · ${esc(i.premio)} · ${i.meta} pts <span class="mute">${esc(i.mes)}</span></span><button class="sec" onclick="del('incentivos',${i.id})">Borrar</button></div>`).join('')}[tab]();
+  ind:()=>`<div class="card">
+    <h3 style="margin-bottom:8px">${editIndId ? 'Editar indicador #' + editIndId : 'Nuevo indicador'}</h3>
+    <input id="in" placeholder="Nombre del indicador">
+    <input id="ip" type="number" placeholder="Puntos por día cumplido">
+    <button onclick="guardarInd()">${editIndId ? 'Actualizar indicador' : 'Guardar indicador'}</button>
+    ${editIndId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInd()">Cancelar</button>` : ''}
+  </div>`
+  +D.indicadores.map(i=>`<div class="card row">
+    <span>${esc(i.nombre)} · ${i.puntos} pts</span>
+    <div style="display:flex;gap:6px">
+      <button class="sec" onclick="editarInd(${i.id}, '${esc(i.nombre).replace(/'/g,"\\'")}', ${i.puntos})">Editar</button>
+      <button class="sec" style="color:var(--coral)" onclick="del('indicadores',${i.id})">Borrar</button>
+    </div>
+  </div>`).join(''),
+  inc:()=>`<div class="card">
+    <h3 style="margin-bottom:8px">${editIncId ? 'Editar incentivo #' + editIncId : 'Nuevo incentivo'}</h3>
+    <p class="mute">Mes actual (${esc(D.mes)}).</p>
+    <input id="xn" placeholder="Nombre">
+    <input id="xp" placeholder="Premio">
+    <input id="xm" type="number" placeholder="Meta de puntos">
+    <button onclick="guardarInc()">${editIncId ? 'Actualizar incentivo' : 'Crear incentivo'}</button>
+    ${editIncId ? `<button class="sec" style="margin-left:6px" onclick="limpiarInc()">Cancelar</button>` : ''}
+  </div>`
+  +D.incentivos.map(i=>`<div class="card row">
+    <span>${esc(i.nombre)} · ${esc(i.premio)} · ${i.meta} pts <span class="mute">${esc(i.mes)}</span></span>
+    <div style="display:flex;gap:6px">
+      <button class="sec" onclick="editarInc(${i.id}, '${esc(i.nombre).replace(/'/g,"\\'")}', '${esc(i.premio).replace(/'/g,"\\'")}', ${i.meta})">Editar</button>
+      <button class="sec" style="color:var(--coral)" onclick="del('incentivos',${i.id})">Borrar</button>
+    </div>
+  </div>`).join('')}[tab]();
 
   app.innerHTML=`
   ${hayActualizacion ? `<div class="upd-alert"><span>🔔 ¡Hay nuevos cambios en la operación!</span><button onclick="load()">Actualizar página</button></div>` : ''}
@@ -723,7 +781,7 @@ function drawAdmin(){
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
-  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
+  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
   ${v}
   <div class="row" style="margin:28px 0 10px">
     <h2 style="margin:0">Ranking actual</h2>
@@ -835,7 +893,6 @@ function avisoFecha(){
   const a=$('#aw');if(!a||!F)return;const d=F.fechas.find(x=>x.fecha===$('#fe').value);
   a.textContent=d?`⚠ ${fdl(d.fecha)} ya tiene ${d.registros} registros cargados. Si guardas, se reemplazan los resultados de esa fecha.`:'';
 }
-// ---------- Admin: por qué cada persona está en su posición ----------
 const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
 const corto=n=>n.split(' ').slice(0,2).join(' ');
 function posView(){
@@ -892,7 +949,6 @@ function posView(){
   <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
   <div class="card"><b>Análisis individual</b>${det}</div>`;
 }
-// ---------- Usuario: pop-up lateral que explica cómo sumar ----------
 let popOpen=false;
 const dd=n=>n+(n===1?' día':' días');
 const perfectDay=()=>D.indicadores.reduce((a,x)=>a+x.puntos,0);
