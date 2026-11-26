@@ -37,11 +37,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .mute{color:var(--mute);font-size:.92rem}
 .tag{font-size:.78rem;padding:2px 9px;border-radius:20px;background:var(--line);display:inline-block;font-weight:600}
 .tag.aprobada{background:var(--gold);color:#222}
+.tag.pendiente{background:rgba(124,77,255,.16);color:var(--purple);border:1px solid rgba(124,77,255,.35)}
 .tag.feedback,.tag.neg{background:var(--coral);color:#fff}
 .tag.eq-trad{background:#1e6091;color:#fff}
 .tag.eq-soc{background:var(--purple);color:#fff}
 
-/* Navegación principal más clara y táctil */
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .tabs button{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:9px 15px;border-radius:10px}
 .tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink);box-shadow:0 4px 12px rgba(15,42,67,.18)}
@@ -172,7 +172,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .shd{display:flex;align-items:center;gap:8px;padding-left:10px;border-left:5px solid var(--gold);flex-wrap:wrap}
 .shd .tag{background:var(--gold);color:#222;font-weight:800}
 
-/* INCENTIVOS LLAMATIVOS Y BRILLANTES */
 .inc{position:relative;border:2px solid rgba(224,165,38,.55);background:linear-gradient(145deg,rgba(255,215,105,.16),var(--card) 45%,rgba(224,165,38,.12));padding:18px 16px 15px;overflow:hidden;box-shadow:0 6px 20px rgba(224,165,38,.16)}
 .inc::before{content:'';position:absolute;top:-60%;left:-60%;width:45%;height:220%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transform:rotate(25deg);pointer-events:none}
 @media(prefers-reduced-motion:no-preference){.inc::before{animation:shine 4.5s ease-in-out infinite}}
@@ -220,6 +219,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .reto-card.done{border-left-color:var(--gold);background:linear-gradient(135deg,rgba(224,165,38,.12),var(--card))}
 .ev-box{background:rgba(214,84,63,.12);border:1px solid var(--coral);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:.88rem;color:var(--ink)}
 .ev-box b{color:var(--coral)}
+.val-box{background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.3);border-radius:8px;padding:10px 12px;margin-top:10px}
 
 .neg-card{border-left:5px solid var(--coral)}
 .neg-badge{background:rgba(214,84,63,.15);color:var(--coral);border:1px solid var(--coral);padding:3px 10px;border-radius:12px;font-size:.82rem;font-weight:800}
@@ -240,6 +240,7 @@ const EQUIPOS = {
   social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
 };
 let ASIGNACIONES_EQ = JSON.parse(localStorage.getItem('eq_map') || '{}');
+let PTS_INCREIBLE = +(localStorage.getItem('pts_increible') || 7);
 
 function norm(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
@@ -347,6 +348,13 @@ async function loadExtras(){
     });
     ASIGNACIONES_EQ = { ...ASIGNACIONES_EQ, ...freshMap };
     localStorage.setItem('eq_map', JSON.stringify(ASIGNACIONES_EQ));
+  }catch(e){}
+  try{
+    const cfg = await rpc('obtener_config_ranking', {});
+    if(cfg && typeof cfg.puntos_atencion_increible === 'number'){
+      PTS_INCREIBLE = cfg.puntos_atencion_increible;
+      localStorage.setItem('pts_increible', String(PTS_INCREIBLE));
+    }
   }catch(e){}
 }
 
@@ -484,7 +492,7 @@ function drawUser(){
   }else if(userTab === 'misiones'){
     cuerpoUser = `<div class="card">
       <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
-      <p class="mute">Consulta las misiones activas, revisa el tiempo disponible y recuerda enviar tu evidencia al jefe al cumplirlas.</p>
+      <p class="mute">Cuando completes una misión, márcala como completada para avisar al admin y enviar tu evidencia.</p>
     </div>` + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
@@ -519,7 +527,7 @@ function drawUser(){
       <button class="sec" onclick="userTab='dias';drawUser()">Abrir Mi Día a Día (${cantDias})</button>
     </div>
     <h2 id="postular" class="shd">🌟 Postular una atención increíble</h2>
-    <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas 7 puntos; si no, recibes feedback con un compromiso.</p>
+    <div class="card"><p class="mute">Indica el número de caso y cuéntanos qué pasó y por qué fue excepcional. Será evaluada: si realmente es una atención increíble, ganas <b>${PTS_INCREIBLE} puntos</b>; si no, recibes feedback con un compromiso.</p>
     <input id="nc" maxlength="60" placeholder="Número de caso">
     <textarea id="t" rows="4" maxlength="2000" placeholder="Describe la conversación o atención"></textarea>
     <button onclick="postular()">Enviar postulación</button> <span class="ok">${esc(msg)}</span></div>
@@ -568,29 +576,50 @@ function seccionRetosUsuario(){
   return MISIONES.map(m => {
     const exp = m.fecha_limite && new Date(m.fecha_limite) < new Date();
     const completada = !!m.completada;
+    const pendienteVal = !completada && m.estado_usuario === 'pendiente';
     return `<div class="card reto-card ${completada?'done':''}">
       <div class="row">
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
-          <span class="tag ${completada?'aprobada':''}" style="margin-left:6px">+${m.puntos} pts</span>
+          <span class="tag ${completada?'aprobada':pendienteVal?'pendiente':''}" style="margin-left:6px">+${m.puntos} pts</span>
         </div>
         <span class="mute" style="font-size:.82rem">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
-        <b>📸 Requisito obligatorio:</b> Debes enviar una <b>foto o evidencia al jefe</b> del cumplimiento de esta misión para que te la validen.
+        <b>📸 Evidencia:</b> Envía la foto o captura al jefe y marca abajo cuando la hayas completado para que te validen los puntos.
       </div>
       <div class="row" style="margin-top:8px">
         ${completada
-          ? `<span class="ok">✔ ¡Misión completada y validada!</span>
+          ? `<span class="ok">✔ ¡Misión validada y completada!</span>
              <button class="gold" onclick="copiarImagenLogro('${esc(m.titulo).replace(/'/g,"\\'")}', ${m.puntos})">📋 Copiar imagen de logro para compartir</button>`
-          : exp
-            ? `<span class="mute">Esta misión ya expiró.</span>`
-            : `<span class="mute">Envía tu evidencia al jefe para desbloquear tu insignia.</span>`
+          : pendienteVal
+            ? `<span class="tag pendiente">⏳ Marcada como completada · Esperando validación del admin</span>`
+            : exp
+              ? `<span class="mute">Esta misión ya expiró.</span>`
+              : `<div style="width:100%">
+                   <input id="ev-nota-${m.id}" placeholder="Opcional: escribe enlace o detalle de tu evidencia enviada al jefe">
+                   <button onclick="marcarMisionCompletada(${m.id})">✔ Marcar como completada y pedir validación</button>
+                 </div>`
         }
       </div>
     </div>`;
   }).join('');
+}
+
+async function marcarMisionCompletada(misionId){
+  const elNota = $('#ev-nota-' + misionId);
+  const nota = elNota ? elNota.value.trim() : '';
+  try{
+    await rpc('solicitar_mision', {
+      p_ced: S.ced,
+      p_clave: S.clave,
+      p_mision_id: misionId,
+      p_nota: nota
+    });
+    notify('🚀 Misión enviada a validación', 'El administrador verá que la completaste para validar tus puntos.', 'success');
+    await load();
+  }catch(e){ alert(e.message); }
 }
 
 async function copiarImagenLogro(tituloMision, puntos){
@@ -807,6 +836,17 @@ async function guardarInc(){
   await g('admin_incentivo', payload);
 }
 
+async function guardarPuntosIncreible(){
+  const val = Math.max(1, +$('#pts-inc-input').value || 7);
+  PTS_INCREIBLE = val;
+  localStorage.setItem('pts_increible', String(val));
+  try{
+    await rpc('admin_set_puntos_increible', {p_admin: S.clave, p_puntos: val});
+  }catch(e){}
+  notify('🌟 Puntos actualizados', `Cada atención increíble aprobada ahora otorga ${val} puntos.`, 'success');
+  drawAdmin();
+}
+
 // ---------- Edición de Nombre y Equipo por Persona (Admin) ----------
 function editarPersona(ced, nombre){
   editUsrCed = ced;
@@ -855,10 +895,23 @@ function drawAdmin(){
     ? D.ranking
     : D.ranking.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
+  const totalSolicitudesMis = MISIONES.reduce((acc, m) => acc + ((m.pendientes_validacion && m.pendientes_validacion.length) || 0), 0);
+
   const v={
   pos:()=>posView(),
-  post:()=>D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
-    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar 7 puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>',
+  post:()=>`
+    <div class="card row" style="border-left:5px solid var(--gold)">
+      <div>
+        <b>🌟 Puntos por atención increíble aprobada</b>
+        <div class="mute">Ajusta cuántos puntos suma cada atención increíble aprobada (actual: <b>${PTS_INCREIBLE} pts</b>).</div>
+      </div>
+      <div class="row" style="gap:6px">
+        <input id="pts-inc-input" type="number" min="1" value="${PTS_INCREIBLE}" style="width:95px;margin:0">
+        <button class="gold" onclick="guardarPuntosIncreible()">Guardar puntos</button>
+      </div>
+    </div>
+    ${D.pendientes.map(p=>`<div class="card"><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))} <span class="mute">· Caso ${esc(p.caso||'sin número')}</span><p>${esc(p.descripcion)}</p>
+    <input id="f${p.id}" placeholder="Feedback"><input id="c${p.id}" placeholder="Compromiso de mejora"><button onclick="evaluar(${p.id},true)">Es increíble: dar ${PTS_INCREIBLE} puntos</button> <button class="sec" onclick="evaluar(${p.id},false)">Enviar feedback</button></div>`).join('')||'<p class="mute">No hay postulaciones pendientes.</p>'}`,
   mis:()=>adminMisionesView(),
   neg:()=>adminNegativosView(),
   dia:()=>`<div class="card"><label>Fecha<input id="fe" type="date" value="${new Date().toISOString().slice(0,10)}" oninput="avisoFecha()"></label><p id="aw" class="err" style="min-height:0"></p>
@@ -928,7 +981,12 @@ function drawAdmin(){
       <button class="sec" onclick="out()">Salir</button>
     </div>
   </div>
-  <div class="tabs">${Object.entries(T).map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${k==='post'&&D.pendientes.length?` (${D.pendientes.length})`:''}</button>`).join('')}</div>
+  <div class="tabs">${Object.entries(T).map(([k,n])=>{
+    let badge = '';
+    if(k==='post' && D.pendientes.length) badge = ` (${D.pendientes.length})`;
+    if(k==='mis' && totalSolicitudesMis) badge = ` (${totalSolicitudesMis})`;
+    return `<button class="${k===tab?'on':''}" onclick="editIndId=null;editIncId=null;editUsrCed=null;tab='${k}';drawAdmin()">${n}${badge}</button>`;
+  }).join('')}</div>
   ${v}
   <div class="row" style="margin:28px 0 10px">
     <h2 style="margin:0">Ranking actual</h2>
@@ -942,9 +1000,34 @@ function drawAdmin(){
   if(tab==='dia')avisoFecha();
 }
 
-// ---------- Admin: Gestión de Misiones y Retos ----------
+// ---------- Admin: Gestión de Misiones y Retos + Validación de Completadas ----------
 function adminMisionesView(){
-  return `<div class="card">
+  const pendientesList = [];
+  MISIONES.forEach(m => {
+    (m.pendientes_validacion || []).forEach(pv => {
+      pendientesList.push({ ...pv, mision_id: m.id, mision_titulo: m.titulo, mision_puntos: m.puntos });
+    });
+  });
+
+  const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
+    <h3 style="margin-bottom:6px">📥 Misiones completadas por validar (${pendientesList.length})</h3>
+    <p class="mute" style="margin-top:0">Personas que marcaron la misión como completada y están esperando tu validación para recibir los puntos.</p>
+    ${pendientesList.length ? pendientesList.map(item => `
+      <div class="val-box row" style="margin-bottom:8px">
+        <div>
+          <b>${esc(item.nombre)}</b> ${equipoLabel(getEquipo(item.nombre, item.cedula))} completó <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span>
+          ${item.nota ? `<div class="mute" style="margin-top:3px">Evidencia / nota: ${esc(item.nota)}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', true)">✔ Validar y dar ${item.mision_puntos} pts</button>
+          <button class="sec" style="color:var(--coral)" onclick="aprobarMisionDirecto(${item.mision_id}, '${esc(item.cedula)}', false)">Rechazar</button>
+        </div>
+      </div>
+    `).join('') : '<p class="mute" style="margin:0">No hay misiones marcadas como completadas pendientes de validar.</p>'}
+  </div>`;
+
+  return `${bandejaPendientes}
+  <div class="card">
     <h3 style="margin-bottom:8px">Crear nueva misión o reto</h3>
     <input id="m-tit" placeholder="Nombre de la misión (ej: Cero recontactos hoy)">
     <textarea id="m-desc" rows="2" placeholder="Descripción o reglas del reto"></textarea>
@@ -954,7 +1037,7 @@ function adminMisionesView(){
     </div>
     <button onclick="crearMision()">Publicar misión</button>
   </div>
-  <h2>Misiones activas y validación de evidencias</h2>
+  <h2>Misiones activas y validación manual</h2>
   ${MISIONES.length ? MISIONES.map(m => `
     <div class="card reto-card">
       <div class="row">
@@ -963,14 +1046,14 @@ function adminMisionesView(){
       </div>
       <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · ⏳ ${esc(tiempoRestante(m.fecha_limite))}</p>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
-        <label style="font-size:.85rem">Validar cumplimiento (cuando el usuario te envíe la foto/evidencia):</label>
+        <label style="font-size:.85rem">Validar cumplimiento manual:</label>
         <div class="row">
           <select id="m-usr-${m.id}" style="margin:0;flex:1">
             ${D.usuarios.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
           </select>
           <button onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
         </div>
-        ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
+        ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Validado y completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
       </div>
     </div>
   `).join('') : '<p class="mute">No hay misiones creadas aún.</p>'}`;
@@ -989,8 +1072,16 @@ async function crearMision(){
 async function aprobarMision(misionId){
   const ced = $('#m-usr-'+misionId).value;
   if(!ced) return;
-  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced});
-  notify('🏆 Misión validada', 'Se sumaron los puntos al usuario y se habilitó su imagen de logro.', 'success');
+  await aprobarMisionDirecto(misionId, ced, true);
+}
+
+async function aprobarMisionDirecto(misionId, ced, aprobar){
+  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:ced, p_aprobar:aprobar});
+  if(aprobar){
+    notify('🏆 Misión validada', 'Se validó el cumplimiento y se habilitaron los puntos e insignia de logro.', 'success');
+  }else{
+    notify('↩ Misión devuelta', 'Se marcó la solicitud como rechazada.', 'warn');
+  }
 }
 
 // ---------- Admin: Tablero Anónimo de Conducta (Solo 1 punto) ----------
@@ -1063,7 +1154,7 @@ function posView(){
     </div>
   </div>`;
 
-  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Atenciones increíbles</b><span class="mute">Cada postulación aprobada suma 7 pts directos al ranking del mes.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
+  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Atenciones increíbles</b><span class="mute">Cada postulación aprobada suma ${PTS_INCREIBLE} pts directos al ranking del mes.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
   const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
   const bars=P.map((p,j)=>`<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`).join('');
   const motivo=j=>{const p=P[j];
@@ -1087,7 +1178,7 @@ function posView(){
    <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos}</b>Puntos del mes</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
    <p class="mute" style="margin:0 0 4px"><b style="color:var(--ink)">Cómo llegó a ${p.puntos} puntos</b></p>
    ${ord.map(k=>{const x=p.por_indicador[k],r=x.dias_total?x.dias_ok/x.dias_total*100:0;return `<div class="cmpb"><span>${esc(x.nombre)}</span><span class="tr"><i style="width:${r}%;background:${col(k)}"></i></span><span>${x.dias_ok} de ${x.dias_total} días × ${x.puntos} = <b>${ip(p,k)}</b></span></div>`}).join('')}
-   <div class="cmpb"><span>Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × 7 = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
+   <div class="cmpb"><span>Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
    <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
    <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
   return `${filtroBar}${ex}
@@ -1102,8 +1193,8 @@ const perfectDay=()=>D.indicadores.reduce((a,x)=>a+x.puntos,0);
 function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
 function mision(){
   const pd=perfectDay(),n=D.indicadores.length;
-  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+7} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>7 más</b> si una atención tuya es aprobada como increíble.</p>
-  <div class="chips">${D.indicadores.map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +7</span></div>
+  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble.</p>
+  <div class="chips">${D.indicadores.map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
   <div class="btns"><button onclick="popPost()">✨ Postular una atención</button><button class="sec" onclick="popOpenF()">💡 ¿Cómo funciona?</button></div></div>`;
 }
 function incCards(pts){
@@ -1114,9 +1205,9 @@ function incCards(pts){
     const rb=ok?'¡LOGRADO! 🎉':cerca?'¡CASI LO TIENES! 🔥':prox?'TU PRÓXIMO PREMIO':'PREMIO ACTIVO ✨';
     let how='';
     if(!ok&&pd){
-      const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-7)/pd),pl=k=>k===1?'':'s';
+      const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-PTS_INCREIBLE)/pd),pl=k=>k===1?'':'s';
       how=`<div class="how"><b>🧭 ¿Cómo lo logro?</b><ul>`
-      +(falta<=7?`<li>¡Una sola <b>atención increíble aprobada</b> (+7 pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+7) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
+      +(falta<=PTS_INCREIBLE?`<li>¡Una sola <b>atención increíble aprobada</b> (+${PTS_INCREIBLE} pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+${PTS_INCREIBLE}) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
       +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) llegarías en unos <b>${dd(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
     }
     return `<div class="card inc ${ok?'lg':cerca?'cerca':prox?'prox':''}"><span class="rb">${rb}</span>
@@ -1140,14 +1231,14 @@ function popShow(){
   popHide();if(!D||S.a)return;
   const perfect=D.indicadores.reduce((a,x)=>a+x.puntos,0),aprob=D.postulaciones.filter(p=>p.estado==='aprobada').length,teaser=!sessionStorage.getItem('pz');
   const w=document.createElement('div');w.id='pop';
-  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma 7 pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button onclick="popOpenF()">Ver cómo</button></div>`:''}<button class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
+  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma ${PTS_INCREIBLE} pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button onclick="popOpenF()">Ver cómo</button></div>`:''}<button class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
   const o=document.createElement('div');o.id='ov';o.className='ov';o.onclick=popClose;
   const d=document.createElement('aside');d.id='dw';d.className='dw';d.setAttribute('role','dialog');d.setAttribute('aria-label','Cómo sumar puntos');
   d.innerHTML=`<button class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
   <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${D.indicadores.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
   <div class="stp"><span class="no2">2</span><div><b>Registra tus interacciones destacadas</b><br><span class="mute">Cuando tengas una atención de la que te sientas orgulloso, postúlala con el número de caso y cuenta qué pasó y por qué fue excepcional.</span></div></div>
-  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +7 pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma 7 puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
-  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+7} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
+  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +${PTS_INCREIBLE} pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma ${PTS_INCREIBLE} puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
+  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+PTS_INCREIBLE} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
   <p style="margin:16px 0 0"><button onclick="popPost()">✨ Postular una atención ahora</button></p>`;
   document.body.append(w,o,d);
 }
@@ -1159,7 +1250,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()}
 
 async function g(fn,args){try{await rpc(fn,{p_admin:S.clave,...args});await load()}catch(e){alert(e.message)}}
 const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
-const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:7,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
+const evaluar=(id,ok)=>g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:PTS_INCREIBLE,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
 async function lote(){
   const dup=F&&F.fechas.find(x=>x.fecha===$('#fe').value);
   if(dup&&!confirm(fdl(dup.fecha)+' ya tiene '+dup.registros+' registros cargados. ¿Quieres reemplazarlos con estos?'))return;
