@@ -27,6 +27,7 @@ button:active{transform:none}
 button.sec{background:transparent;color:var(--mute);border:1px solid var(--line)}
 button.gold{background:linear-gradient(135deg,#f4c44e,#e0a526);color:#1d1808}
 button.coral{background:var(--coral);color:#fff}
+button.purp{background:var(--purple);color:#fff}
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .track{height:12px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 4px}
 .track i{display:block;height:100%;background:var(--teal);border-radius:6px;transition:width .6s}
@@ -88,7 +89,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .stats span{font-size:.8rem;color:var(--mute)}
 @media(max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}}
 
-/* Dashboard KPI & Breakdown */
 .dash-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 .kpi-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(15,42,67,.04)}
 .kpi-card.k-ind{border-top:4px solid var(--teal)}
@@ -296,6 +296,9 @@ const EQUIPOS = {
   tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
   social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
 };
+// Cedulas autorizadas como "creador de misiones" (si esta vacio, cualquier cedula con clave "mision" puede entrar)
+const CREADORES_MISIONES = [];
+
 let ASIGNACIONES_EQ = JSON.parse(localStorage.getItem('eq_map') || '{}');
 let PTS_INCREIBLE = +(localStorage.getItem('pts_increible') || 7);
 
@@ -395,6 +398,7 @@ const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S=JSON.parse(sessionStorage.getItem('s')||'null'), D=null, H=null, F=null, G=null;
 let MISIONES=[], NEGATIVOS=[], VALIDACIONES_INC=[];
+let MISIONES_PROPUESTAS = JSON.parse(localStorage.getItem('misiones_propuestas_local') || '[]');
 let OPCIONES_CONDUCTA = JSON.parse(localStorage.getItem('opciones_conducta_local') || '["Mal lenguaje","Actitud grosera","Comportamiento errado"]');
 let MISIONES_LOCAL = JSON.parse(localStorage.getItem('misiones_estado_local') || '{}');
 let MISIONES_META_LOCAL = JSON.parse(localStorage.getItem('misiones_meta_local') || '{}');
@@ -414,6 +418,14 @@ async function rpc(fn,body){
   const r=await fetch(`${URL_}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
   const tx=await r.text(); let j=null; try{j=tx?JSON.parse(tx):null}catch(e){j={message:tx}}
   if(!r.ok) throw new Error((j&&j.message)||'Error de conexión'); return j;
+}
+
+function guardarPropuestasLocal(){
+  localStorage.setItem('misiones_propuestas_local', JSON.stringify(MISIONES_PROPUESTAS));
+}
+
+function getPropuestasPendientesAdmin(){
+  return (MISIONES_PROPUESTAS || []).filter(p => p.estado === 'pendiente');
 }
 
 function guardarPendienteLocalMision(misionId, cedula, nombre, nota='', solicitadaEn=null){
@@ -587,14 +599,16 @@ async function loadExtras(){
     D.incentivos = D.incentivos.map(enrichIncentivo);
   }
   try{
-    const rawM = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced}) || [];
+    const cedQuery = S.a ? null : S.ced;
+    const rawM = await rpc('listar_misiones', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:cedQuery}) || [];
     MISIONES = enrichMisiones(rawM);
   }catch(e){ MISIONES = enrichMisiones([]); }
   try{
     NEGATIVOS = await rpc('listar_negativos', {}) || [];
   }catch(e){ NEGATIVOS = []; }
   try{
-    const vals = await rpc('listar_validaciones_incentivos', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:S.ced});
+    const cedQuery = S.a ? null : S.ced;
+    const vals = await rpc('listar_validaciones_incentivos', S.a ? {p_admin:S.clave, p_ced:null} : {p_admin:null, p_ced:cedQuery});
     if(Array.isArray(vals)) VALIDACIONES_INC = vals;
   }catch(e){}
   try{
@@ -623,14 +637,15 @@ async function loadExtras(){
   }catch(e){}
 }
 
-function buildSignature(d, h, mis, vals){
+function buildSignature(d, h, mis, vals, props){
   const posts = ((d && d.postulaciones) || []).map(p=>`${p.id}:${p.estado}`).join('|');
   const pend = ((d && d.pendientes) || []).map(p=>`${p.id}`).join(',');
   const upd = h && h.actualizado ? h.actualizado : '';
   const rk = ((d && d.ranking) || []).map(r=>`${r.nombre}:${r.puntos}`).join('|');
   const mSig = (mis||[]).map(m=>`${m.id}:${m.estado_usuario||''}:${(m.pendientes_validacion||[]).map(x=>x.cedula).join(',')}:${(m.completados||[]).length}:${m.completada?1:0}`).join('|');
   const vSig = (vals||[]).map(v=>`${v.incentivo_id}:${v.cedula}:${v.estado}`).join('|');
-  return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}`;
+  const pSig = (props||[]).map(x=>`${x.prop_id}:${x.estado}`).join('|');
+  return `${upd}::${posts}::${pend}::${rk}::${mSig}::${vSig}::${pSig}`;
 }
 
 function detectarYNotificarCambios(prevState, nextState){
@@ -647,7 +662,7 @@ function detectarYNotificarCambios(prevState, nextState){
           `<button type="button" class="gold" data-user-tab="misiones">Ver misión</button>`,
           `mis-new-${m.id}`
         );
-      }else{
+      }else if(!S.creador){
         const oldM = (prevState.misiones || []).find(x => String(x.id) === String(m.id));
         const fueAprobada = (!oldM || !oldM.completada) && !!m.completada;
         const fueRechazada = (!oldM || oldM.estado_usuario !== 'rechazada') && m.estado_usuario === 'rechazada';
@@ -672,18 +687,48 @@ function detectarYNotificarCambios(prevState, nextState){
       }
     });
 
-    const oldMap = {};
-    ((prevState.D && prevState.D.postulaciones) || []).forEach(p => oldMap[p.id] = p.estado);
-    ((nextState.D && nextState.D.postulaciones) || []).forEach(p => {
-      if(oldMap[p.id] && oldMap[p.id] === 'pendiente' && p.estado !== 'pendiente'){
-        if(p.estado === 'aprobada'){
-          notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success', '', `post-ok-${p.id}`);
-        }else{
-          notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info', '', `post-fb-${p.id}`);
+    if(S.creador){
+      const oldProps = {};
+      (prevState.props || []).forEach(x => oldProps[x.prop_id] = x.estado);
+      (nextState.props || []).forEach(x => {
+        if(oldProps[x.prop_id] === 'pendiente' && x.estado !== 'pendiente'){
+          if(x.estado === 'aprobada'){
+            notify('✅ Misión aprobada por el admin', `"${x.titulo}" ya fue publicada para los usuarios.`, 'success', '', `prop-ok-${x.prop_id}`);
+          }else if(x.estado === 'rechazada'){
+            notify('❌ Misión rechazada por el admin', `"${x.titulo}" fue rechazada.`, 'warn', '', `prop-no-${x.prop_id}`);
+          }
         }
+      });
+    }
+
+    if(!S.creador){
+      const oldMap = {};
+      ((prevState.D && prevState.D.postulaciones) || []).forEach(p => oldMap[p.id] = p.estado);
+      ((nextState.D && nextState.D.postulaciones) || []).forEach(p => {
+        if(oldMap[p.id] && oldMap[p.id] === 'pendiente' && p.estado !== 'pendiente'){
+          if(p.estado === 'aprobada'){
+            notify('🎉 ¡Postulación aprobada!', `Tu caso ${p.numero_caso||''} ganó +${p.puntos} puntos.`, 'success', '', `post-ok-${p.id}`);
+          }else{
+            notify('💬 Respuesta a tu postulación', `Tienes nuevo feedback en el caso ${p.numero_caso||''}.`, 'info', '', `post-fb-${p.id}`);
+          }
+        }
+      });
+    }
+  }else{
+    const prevPropIds = new Set((prevState.props || []).filter(x => x.estado === 'pendiente').map(x => String(x.prop_id)));
+    (nextState.props || []).filter(x => x.estado === 'pendiente').forEach(x => {
+      if(!prevPropIds.has(String(x.prop_id))){
+        notify(
+          `📝 Misión propuesta por ${x.creador_nombre || 'Creador'}`,
+          `"${x.titulo}" (+${x.puntos} pts) espera tu aprobación.`,
+          'alert',
+          `<button type="button" class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Revisar misión</button>`,
+          `adm-prop-${x.prop_id}`,
+          20000
+        );
       }
     });
-  }else{
+
     const prevPendIds = new Set(((prevState.D && prevState.D.pendientes) || []).map(p => String(p.id)));
     ((nextState.D && nextState.D.pendientes) || []).forEach(p => {
       if(!prevPendIds.has(String(p.id))){
@@ -741,7 +786,8 @@ async function syncState({ silent=false, allowNotif=true } = {}){
   const prevState = D ? {
     D: JSON.parse(JSON.stringify(D)),
     misiones: JSON.parse(JSON.stringify(MISIONES)),
-    vals: JSON.parse(JSON.stringify(VALIDACIONES_INC))
+    vals: JSON.parse(JSON.stringify(VALIDACIONES_INC)),
+    props: JSON.parse(JSON.stringify(MISIONES_PROPUESTAS))
   } : null;
 
   const nextD = S.a
@@ -766,8 +812,8 @@ async function syncState({ silent=false, allowNotif=true } = {}){
 
   await loadExtras();
 
-  const nextState = { D, misiones: MISIONES, vals: VALIDACIONES_INC };
-  const sig = buildSignature(D, H, MISIONES, VALIDACIONES_INC);
+  const nextState = { D, misiones: MISIONES, vals: VALIDACIONES_INC, props: MISIONES_PROPUESTAS };
+  const sig = buildSignature(D, H, MISIONES, VALIDACIONES_INC, MISIONES_PROPUESTAS);
 
   if(prevState && sig !== lastSignature){
     if(allowNotif){
@@ -812,6 +858,46 @@ function setupRealtime(){
   cleanupRealtime();
   rtChannel = sb.channel('operacion-realtime-v1', {
     config: { broadcast: { ack: false } }
+  });
+
+  rtChannel.on('broadcast', { event: 'mision_propuesta' }, ({ payload }) => {
+    if(!payload || !payload.prop_id) return;
+    const existe = MISIONES_PROPUESTAS.some(x => String(x.prop_id) === String(payload.prop_id));
+    if(!existe){
+      MISIONES_PROPUESTAS = [payload, ...MISIONES_PROPUESTAS];
+      guardarPropuestasLocal();
+    }
+    if(S && S.a){
+      notify(
+        `📝 Misión propuesta por ${payload.creador_nombre || 'Creador'}`,
+        `"${payload.titulo}" (+${payload.puntos} pts) espera tu aprobación.`,
+        'alert',
+        `<button type="button" class="gold" onclick="bellOpen=true;tab='mis';drawAdmin()">Revisar misión</button>`,
+        `evt-prop-${payload.prop_id}`,
+        20000
+      );
+      drawAdmin();
+    }
+  });
+
+  rtChannel.on('broadcast', { event: 'propuesta_mision_resuelta' }, ({ payload }) => {
+    if(!payload || !payload.prop_id) return;
+    MISIONES_PROPUESTAS = MISIONES_PROPUESTAS.map(x =>
+      String(x.prop_id) === String(payload.prop_id)
+        ? { ...x, estado: payload.aprobada ? 'aprobada' : 'rechazada' }
+        : x
+    );
+    guardarPropuestasLocal();
+    if(S && !S.a && S.creador && String(payload.creador_ced || '') === String(S.ced)){
+      notify(
+        payload.aprobada ? '✅ Misión aprobada por el admin' : '❌ Misión rechazada por el admin',
+        payload.aprobada ? `"${payload.titulo}" fue aprobada y publicada.` : `"${payload.titulo}" fue rechazada.`,
+        payload.aprobada ? 'success' : 'warn',
+        '',
+        `evt-pres-${payload.prop_id}`
+      );
+    }
+    scheduleRealtimeSync(false);
   });
 
   rtChannel.on('broadcast', { event: 'mision_publicada' }, ({ payload }) => {
@@ -946,18 +1032,56 @@ function startClockTick(){
   }, 30000);
 }
 
+function loginCreador(){
+  const ced = $('#c').value.trim();
+  const clave = $('#k').value;
+  if(!ced){
+    login('Ingresa tu cédula para entrar como creador de misiones.');
+    return;
+  }
+  if(CREADORES_MISIONES.length && !CREADORES_MISIONES.map(String).includes(ced)){
+    login('Tu cédula no está habilitada para el perfil de creador de misiones.');
+    return;
+  }
+  if(clave !== 'mision'){
+    login('Clave incorrecta para creador de misiones.');
+    return;
+  }
+  S = { ced, clave, creador: 1 };
+  load();
+}
+
 async function load(){
   try{
-    D = S.a ? await rpc('admin_panel',{p_admin:S.clave}) : await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
-    if(S.a){
-      try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
-      try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}
-    }
-    if(!S.a){
-      try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}
+    if(S.creador){
+      try{
+        D = await rpc('mi_panel', {p_ced: S.ced, p_clave: S.clave});
+      }catch(e){
+        const admTmp = await rpc('admin_panel', {p_admin: 'admin'});
+        const uMatch = (admTmp.usuarios || []).find(u => String(u.cedula) === String(S.ced));
+        D = {
+          nombre: uMatch ? uMatch.nombre : `Creador ${S.ced}`,
+          mes: admTmp.mes || '',
+          ranking: admTmp.ranking || [],
+          incentivos: admTmp.incentivos || [],
+          indicadores: admTmp.indicadores || [],
+          usuarios: admTmp.usuarios || [],
+          postulaciones: []
+        };
+      }
+      try{ H = await rpc('mi_historial', {p_ced: S.ced, p_clave: S.clave}); }catch(e){ H = null; }
+    }else{
+      D = S.a ? await rpc('admin_panel',{p_admin:S.clave}) : await rpc('mi_panel',{p_ced:S.ced,p_clave:S.clave});
+      if(S.a){
+        try{F=await rpc('admin_fechas',{p_admin:S.clave})}catch(e){F=null}
+        try{G=await rpc('admin_detalle',{p_admin:S.clave})}catch(e){G=null}
+      }
+      if(!S.a){
+        try{H=await rpc('mi_historial',{p_ced:S.ced,p_clave:S.clave})}catch(e){H=null}
+      }
     }
     await loadExtras();
-    lastSignature = buildSignature(D, H, MISIONES, VALIDACIONES_INC);
+    lastSignature = buildSignature(D, H, MISIONES, VALIDACIONES_INC, MISIONES_PROPUESTAS);
     sessionStorage.setItem('s',JSON.stringify(S));
     draw();
     setupRealtime();
@@ -974,8 +1098,10 @@ function login(err=''){
   <label for="c">Cédula</label><input id="c" inputmode="numeric" autocomplete="username">
   <label for="k">Clave</label><input id="k" type="password" autocomplete="current-password">
   <p class="err">${esc(err)}</p><button type="button" id="go">Entrar</button>
+  <button type="button" class="sec" id="cre" style="margin-left:6px">Soy creador de misiones</button>
   <button type="button" class="sec" id="adm" style="margin-left:6px">Soy administrador</button></div>`;
   $('#go').onclick=()=>{playTone('info');S={ced:$('#c').value.trim(),clave:$('#k').value};load()};
+  $('#cre').onclick=()=>{playTone('info');loginCreador()};
   $('#adm').onclick=()=>{playTone('info');S={a:1,clave:$('#k').value};load()};
 }
 function out(){if(pollTimer)clearInterval(pollTimer);if(clockTimer)clearInterval(clockTimer);cleanupRealtime();S=null;D=null;lastSignature=null;bellOpen=false;sessionStorage.removeItem('s');login()}
@@ -1225,6 +1351,123 @@ function setVistaNeg(nextNeg){
   drawUser();
 }
 
+function toggleSelectorAlgunosCreador(){
+  const sel = $('#cm-asig-tipo');
+  const box = $('#cm-algunos-box');
+  if(!sel || !box) return;
+  box.style.display = sel.value === 'algunos' ? 'block' : 'none';
+}
+
+async function enviarPropuestaMision(){
+  const titulo = $('#cm-tit').value.trim();
+  const descripcion = $('#cm-desc').value.trim();
+  const puntos = +$('#cm-pts').value;
+  const limite = $('#cm-lim').value ? new Date($('#cm-lim').value).toISOString() : null;
+  const obligatoria = $('#cm-oblig').checked;
+  const asignacionTipo = $('#cm-asig-tipo').value;
+  const asignadosCedulas = asignacionTipo === 'algunos'
+    ? Array.from(document.querySelectorAll('.cm-asig-ced:checked')).map(el => String(el.value))
+    : [];
+  const insigniaIcono = ($('#cm-ins-ico').value || '🏅').trim();
+  const insigniaNombre = ($('#cm-ins-nom').value || ('Insignia: ' + titulo)).trim();
+
+  if(!titulo || !puntos){ alert('Ingresa el nombre de la misión y los puntos'); return; }
+  if(asignacionTipo === 'algunos' && !asignadosCedulas.length){
+    alert('Selecciona al menos una persona para asignar la misión');
+    return;
+  }
+
+  const res = resolverDatosUsuario(S.ced, D && D.nombre);
+  const propuesta = {
+    prop_id: 'prop_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    titulo,
+    descripcion,
+    puntos,
+    fecha_limite: limite,
+    obligatoria,
+    asignacion_tipo: asignacionTipo,
+    asignados_cedulas: asignadosCedulas,
+    insignia_nombre: insigniaNombre,
+    insignia_icono: insigniaIcono,
+    creador_ced: res.cedula,
+    creador_nombre: res.nombre,
+    estado: 'pendiente',
+    creada_en: new Date().toISOString()
+  };
+
+  MISIONES_PROPUESTAS = [propuesta, ...MISIONES_PROPUESTAS];
+  guardarPropuestasLocal();
+
+  broadcastEvent('mision_propuesta', propuesta);
+  notify('📨 Enviada al administrador', `La misión "${titulo}" quedó pendiente de aprobación del admin.`, 'success', '', `prop-sent-${propuesta.prop_id}`);
+  drawUser();
+}
+
+function panelCreadorMisionesHtml(){
+  const usuariosList = (D && D.usuarios) ? D.usuarios : [];
+  const misPropuestas = MISIONES_PROPUESTAS.filter(p => String(p.creador_ced) === String(S.ced));
+
+  return `<div class="card" style="border-left:5px solid var(--purple)">
+    <div class="row" style="margin-bottom:6px">
+      <h3 style="margin:0">📝 Crear misión (envío a aprobación del admin)</h3>
+      <span class="tag pendiente">Perfil Creador de Misiones</span>
+    </div>
+    <p class="mute" style="margin-top:0">Las misiones creadas aquí se envían al administrador para su aprobación antes de publicarse a los usuarios.</p>
+    <label for="cm-tit" style="font-size:.85rem">Nombre de la misión</label>
+    <input id="cm-tit" placeholder="Nombre de la misión">
+    <label for="cm-desc" style="font-size:.85rem">Descripción o reglas del reto</label>
+    <textarea id="cm-desc" rows="2" placeholder="Descripción o reglas del reto"></textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><label for="cm-pts" style="font-size:.85rem">Puntos que otorga</label><input id="cm-pts" type="number" placeholder="Ej: 10"></div>
+      <div><label for="cm-lim" style="font-size:.85rem">Disponible hasta (fecha y hora)</label><input id="cm-lim" type="datetime-local"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:8px">
+      <div><label for="cm-ins-ico" style="font-size:.85rem">Ícono insignia</label><input id="cm-ins-ico" value="🏅" maxlength="8"></div>
+      <div><label for="cm-ins-nom" style="font-size:.85rem">Nombre de la insignia</label><input id="cm-ins-nom" placeholder="Nombre de la insignia (vacío = automático)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
+      <div>
+        <label for="cm-asig-tipo" style="font-size:.85rem">Asignar a</label>
+        <select id="cm-asig-tipo" onchange="toggleSelectorAlgunosCreador()">
+          <option value="todos">Todos los integrantes</option>
+          <option value="algunos">Solo algunos integrantes</option>
+        </select>
+      </div>
+      <div style="padding-top:14px">
+        <label for="cm-oblig" class="chk-item">
+          <input id="cm-oblig" type="checkbox">
+          <span><b>🔒 Misión obligatoria</b></span>
+        </label>
+      </div>
+    </div>
+    <div id="cm-algunos-box" style="display:none">
+      <label style="font-size:.85rem">Selecciona a quiénes asignar esta misión:</label>
+      <div class="chk-list">
+        ${usuariosList.map(u => `
+          <label class="chk-item">
+            <input type="checkbox" class="cm-asig-ced" value="${esc(u.cedula)}">
+            <span>${esc(u.nombre)} <span class="mute">(${getEquipo(u.nombre, u.cedula)})</span></span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+    <button type="button" class="purp" onclick="enviarPropuestaMision()">Enviar misión al admin para aprobar</button>
+
+    ${misPropuestas.length ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+      <b>Mis misiones enviadas al admin (${misPropuestas.length})</b>
+      ${misPropuestas.map(pr => `
+        <div class="sol-row">
+          <div>
+            <b>${esc(pr.titulo)}</b> <span class="tag aprobada">+${pr.puntos} pts</span> <span class="tag badge-pill">${esc(pr.insignia_icono)} ${esc(pr.insignia_nombre)}</span>
+            <div class="mute" style="font-size:.82rem">${esc(pr.descripcion || '')}</div>
+          </div>
+          <span class="tag ${pr.estado==='aprobada'?'aprobada':pr.estado==='rechazada'?'rechazada':'pendiente'}">${pr.estado==='aprobada'?'Aprobada y publicada':pr.estado==='rechazada'?'Rechazada por admin':'Pendiente de aprobación del admin'}</span>
+        </div>
+      `).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
 function drawUser(){
   const nombreUsr = (D && D.nombre) ? D.nombre : 'Usuario';
   const mesAct = (D && D.mes) ? D.mes : '';
@@ -1250,12 +1493,13 @@ function drawUser(){
   }).length;
   const insigniasGanadas = getInsigniasGanadasUsuario();
   const dgUser = getDesglosePuntosUsuario(pts);
+  const misPropPend = MISIONES_PROPUESTAS.filter(p => String(p.creador_ced) === String(S.ced) && p.estado === 'pendiente').length;
 
   const navUser = `<div class="tabs">
     <button type="button" data-user-tab="resultados" class="${userTab==='resultados'?'on':''}">📊 Resumen y Premios</button>
     <button type="button" data-user-tab="dashboard" class="${userTab==='dashboard'?'on':''}">📈 Mi Dashboard</button>
     <button type="button" data-user-tab="dias" class="${userTab==='dias'?'on':''}">📅 Mi Día a Día (${cantDias})</button>
-    <button type="button" data-user-tab="misiones" class="${userTab==='misiones'?'on':''}">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
+    <button type="button" data-user-tab="misiones" class="${userTab==='misiones'?'on':''}">🚀 Misiones e Insignias (${misionesVisibles.length}${S.creador&&misPropPend?` · 📝${misPropPend}`:''}${!S.creador&&obligPendientes?` · 🔒${obligPendientes}`:''})</button>
     <button type="button" data-user-tab="negativos" class="${userTab==='negativos'?'on':''}">⚠️ Mal comportamiento</button>
   </div>`;
 
@@ -1292,10 +1536,10 @@ function drawUser(){
       </div>
     </div>` + dias();
   }else if(userTab === 'misiones'){
-    cuerpoUser = bloqueInsignias + `<div class="card">
-      <h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2>
-      <p class="mute">Recibes alertas al instante cuando se publica una nueva misión. Las misiones <b>obligatorias</b> no pueden omitirse.</p>
-    </div>` + seccionRetosUsuario();
+    cuerpoUser = (S.creador ? panelCreadorMisionesHtml() : '')
+      + bloqueInsignias
+      + `<div class="card"><h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2><p class="mute">Recibes alertas al instante cuando se publica una nueva misión. Las misiones <b>obligatorias</b> no pueden omitirse.</p></div>`
+      + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
       <h2 style="margin-top:0">⚠️ Tablero General de Mal Comportamiento</h2>
@@ -1326,6 +1570,7 @@ function drawUser(){
         <button type="button" class="sec" data-user-tab="dashboard">Abrir Dashboard</button>
       </div>
     </div>
+    ${S.creador ? panelCreadorMisionesHtml() : ''}
     ${mision()}
     ${bloqueInsignias}
     <h2 class="shd">✨ Premios a conseguir <span class="tag">${incentivosList.length}</span></h2>
@@ -1333,7 +1578,7 @@ function drawUser(){
     <h2 class="shd">📊 Mis indicadores</h2>${misInd()}
     <div class="card row" style="margin-top:14px">
       <div>
-        <b>📅 ¿Quieres ver tu historial detallado día por día?</b>
+        <b>📅 ¿Quieres ver tu historial detallado día a día?</b>
         <div class="mute">Consulta cada fecha con el detalle de tus indicadores, promotores y detractores.</div>
       </div>
       <button type="button" class="sec" data-user-tab="dias">Abrir Mi Día a Día (${cantDias})</button>
@@ -1351,7 +1596,7 @@ function drawUser(){
   app.innerHTML=`
   <div class="top">
     <div>
-      <h1>¡Hola, ${esc(nombreUsr.split(' ')[0])}! 👋 ${equipoLabel(miEq)} ${rtBadgeHtml()}</h1>
+      <h1>¡Hola, ${esc(nombreUsr.split(' ')[0])}! 👋 ${equipoLabel(miEq)} ${S.creador?'<span class="tag pendiente">Creador de misiones</span>':''} ${rtBadgeHtml()}</h1>
       <span class="mute">Así vas en ${esc(mesAct)}</span>
     </div>
     <div style="display:flex;gap:6px">
@@ -2042,7 +2287,8 @@ function campanaAdminHtml(){
   const pendPost = (D && D.pendientes) ? D.pendientes : [];
   const pendMis = getPendientesMisionesAdmin();
   const pendInc = getPendientesIncentivosAdmin();
-  const total = pendPost.length + pendMis.length + pendInc.length;
+  const pendProps = getPropuestasPendientesAdmin();
+  const total = pendPost.length + pendMis.length + pendInc.length + pendProps.length;
 
   return `<div class="bell-wrap">
     <button type="button" class="bell-btn ${total?'has-alert':''}" onclick="toggleBell()" aria-expanded="${bellOpen?'true':'false'}" aria-label="Notificaciones pendientes de validación">
@@ -2054,6 +2300,23 @@ function campanaAdminHtml(){
       <div class="row">
         <b>🔔 Solicitudes por validar (${total})</b>
         <button type="button" class="sec" style="padding:2px 8px;font-size:.8rem" onclick="bellOpen=false;drawAdmin()">Cerrar</button>
+      </div>
+
+      <div class="bell-sec">
+        <div class="row">
+          <b>📝 Misiones propuestas por aprobar (${pendProps.length})</b>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:.78rem" onclick="irATabValidacion('mis')">Ver sección</button>
+        </div>
+        ${pendProps.length ? pendProps.map(pr => `
+          <div class="bell-item">
+            <div class="sol-who">📝 ${esc(pr.creador_nombre || 'Creador')} <span class="mute">(CC ${esc(pr.creador_ced || 'N/A')})</span></div>
+            <div style="margin-top:3px">Misión propuesta: <b>"${esc(pr.titulo)}"</b> <span class="tag aprobada">+${pr.puntos} pts</span></div>
+            <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+              <button type="button" style="padding:5px 10px;font-size:.8rem" onclick='bellOpen=false;resolverPropuestaMision(${jsArg(pr.prop_id)}, true)'>✔ Aprobar y publicar</button>
+              <button type="button" class="sec" style="padding:5px 10px;font-size:.8rem;color:var(--coral)" onclick='bellOpen=false;resolverPropuestaMision(${jsArg(pr.prop_id)}, false)'>Rechazar</button>
+            </div>
+          </div>
+        `).join('') : '<div class="mute" style="font-size:.85rem;margin-top:4px">Sin misiones propuestas pendientes.</div>'}
       </div>
 
       <div class="bell-sec">
@@ -2119,7 +2382,7 @@ function drawAdmin(){
     ? rkAll
     : rkAll.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
 
-  const totalSolicitudesMis = getPendientesMisionesAdmin().length;
+  const totalSolicitudesMis = getPendientesMisionesAdmin().length + getPropuestasPendientesAdmin().length;
   const totalSolicitudesInc = getPendientesIncentivosAdmin().length;
   const pendientesList = (D && D.pendientes) ? D.pendientes : [];
   const indicadoresList = (D && D.indicadores) ? D.indicadores : [];
@@ -2240,9 +2503,70 @@ function resumenAsignacion(m){
   return 'Asignada a todos';
 }
 
+async function resolverPropuestaMision(propId, aprobar){
+  const prop = MISIONES_PROPUESTAS.find(x => String(x.prop_id) === String(propId));
+  if(!prop) return;
+
+  MISIONES_PROPUESTAS = MISIONES_PROPUESTAS.map(x =>
+    String(x.prop_id) === String(propId) ? { ...x, estado: aprobar ? 'aprobada' : 'rechazada' } : x
+  );
+  guardarPropuestasLocal();
+
+  if(aprobar){
+    saveMetaLocalMision(prop.titulo, prop.obligatoria, prop.asignacion_tipo, prop.asignados_cedulas, prop.insignia_nombre, prop.insignia_icono);
+    try{
+      await g('admin_crear_mision', {
+        p_titulo: prop.titulo, p_descripcion: prop.descripcion, p_puntos: prop.puntos, p_fecha_limite: prop.fecha_limite,
+        p_obligatoria: prop.obligatoria, p_asignacion_tipo: prop.asignacion_tipo,
+        p_asignados_cedulas: prop.asignados_cedulas, p_insignia_nombre: prop.insignia_nombre, p_insignia_icono: prop.insignia_icono
+      });
+    }catch(e){
+      await g('admin_crear_mision', {
+        p_titulo: prop.titulo, p_descripcion: prop.descripcion, p_puntos: prop.puntos, p_fecha_limite: prop.fecha_limite
+      });
+    }
+    broadcastEvent('mision_publicada', {
+      titulo: prop.titulo, puntos: prop.puntos, obligatoria: prop.obligatoria,
+      asignacion_tipo: prop.asignacion_tipo, asignados_cedulas: prop.asignados_cedulas,
+      insignia_nombre: prop.insignia_nombre, insignia_icono: prop.insignia_icono
+    });
+    notify('✅ Misión aprobada y publicada', `"${prop.titulo}" ya está activa para los usuarios.`, 'success');
+  }else{
+    notify('❌ Propuesta rechazada', `Se rechazó la misión propuesta "${prop.titulo}".`, 'warn');
+    drawAdmin();
+  }
+
+  broadcastEvent('propuesta_mision_resuelta', {
+    prop_id: prop.prop_id,
+    titulo: prop.titulo,
+    creador_ced: prop.creador_ced,
+    aprobada: aprobar
+  });
+}
+
 function adminMisionesView(){
+  const propuestasPend = getPropuestasPendientesAdmin();
   const pendientesList = getPendientesMisionesAdmin();
   const usuariosList = (D && D.usuarios) ? D.usuarios : [];
+
+  const bandejaPropuestas = propuestasPend.length ? `<div class="card" style="border-left:5px solid var(--purple)">
+    <h3 style="margin-bottom:6px">📝 Misiones propuestas por aprobar (${propuestasPend.length})</h3>
+    <p class="mute" style="margin-top:0">Revisa las misiones creadas por el perfil Creador de misiones para aprobarlas y publicarlas o rechazarlas.</p>
+    ${propuestasPend.map(pr => `
+      <div class="sol-row">
+        <div>
+          <div class="sol-who">📝 Propuesta por ${esc(pr.creador_nombre || 'Creador')} <span class="mute">(CC ${esc(pr.creador_ced || 'N/A')})</span></div>
+          <div style="margin-top:3px"><b>${esc(pr.titulo)}</b> <span class="tag aprobada">+${pr.puntos} pts</span> <span class="tag badge-pill">${esc(pr.insignia_icono)} ${esc(pr.insignia_nombre)}</span> ${pr.obligatoria?'<span class="tag oblig">🔒 Obligatoria</span>':'<span class="tag">Opcional</span>'}</div>
+          ${pr.descripcion ? `<div class="mute" style="margin-top:3px">${esc(pr.descripcion)}</div>` : ''}
+          <div class="mute" style="font-size:.82rem;margin-top:2px">${esc(resumenAsignacion(pr))} · <span data-deadline="${esc(pr.fecha_limite||'')}">⏳ ${esc(tiempoRestante(pr.fecha_limite))}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" onclick='resolverPropuestaMision(${jsArg(pr.prop_id)}, true)'>✔ Aprobar y publicar</button>
+          <button type="button" class="sec" style="color:var(--coral)" onclick='resolverPropuestaMision(${jsArg(pr.prop_id)}, false)'>Rechazar</button>
+        </div>
+      </div>
+    `).join('')}
+  </div>` : '';
 
   const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
     <h3 style="margin-bottom:6px">📥 Bandeja de solicitudes por persona (${pendientesList.length} enviadas a validación)</h3>
@@ -2265,7 +2589,7 @@ function adminMisionesView(){
     }).join('') : '<p class="mute" style="margin:0">Ningún usuario tiene misiones pendientes de aprobación en este momento.</p>'}
   </div>`;
 
-  return `${bandejaPendientes}
+  return `${bandejaPropuestas}${bandejaPendientes}
   <div class="card">
     <h3 style="margin-bottom:8px">Crear nueva misión o reto con insignia</h3>
     <label for="m-tit" style="font-size:.85rem">Nombre de la misión</label>
@@ -2770,6 +3094,7 @@ async function lote(){
 Object.assign(window, {
   out, drawUser, drawAdmin, syncState, playTone, notify,
   setUserTab, setVistaRk, setVistaNeg,
+  toggleSelectorAlgunosCreador, enviarPropuestaMision, resolverPropuestaMision,
   aceptarMision, omitirMision, marcarMisionCompletada, copiarImagenLogro,
   reportarNegativo, postular,
   editarInd, limpiarInd, guardarInd, toggleTipoMetaForm,
