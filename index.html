@@ -474,6 +474,7 @@ function getPropuestasPendientesAdmin(){
 function guardarPendienteLocalMision(misionId, cedula, nombre, nota='', solicitadaEn=null){
   const k = String(misionId);
   const res = resolverDatosUsuario(cedula, nombre);
+  if(yaTieneMisionValidada(k, res.cedula, res.nombre)) return;
   if(!MISIONES_PENDIENTES_LOCAL[k]) MISIONES_PENDIENTES_LOCAL[k] = [];
   const idx = MISIONES_PENDIENTES_LOCAL[k].findIndex(x => String(x.cedula) === res.cedula);
   const entry = {
@@ -494,17 +495,48 @@ function quitarPendienteLocalMision(misionId, cedula){
   localStorage.setItem('misiones_pendientes_local', JSON.stringify(MISIONES_PENDIENTES_LOCAL));
 }
 
-function getEstadoLocalMision(misionId){
-  if(!S || !S.ced) return null;
-  return (MISIONES_LOCAL[String(S.ced)] && MISIONES_LOCAL[String(S.ced)][String(misionId)]) || null;
+function getEstadoLocalMision(misionId, cedula=null){
+  const ced = String(cedula || (S && S.ced) || '').trim();
+  if(!ced) return null;
+  return (MISIONES_LOCAL[ced] && MISIONES_LOCAL[ced][String(misionId)]) || null;
 }
-function setEstadoLocalMision(misionId, estado){
-  if(!S || !S.ced) return;
-  const k = String(S.ced);
-  if(!MISIONES_LOCAL[k]) MISIONES_LOCAL[k] = {};
-  MISIONES_LOCAL[k][String(misionId)] = estado;
+
+function setEstadoLocalMision(misionId, estado, cedula=null){
+  const ced = String(cedula || (S && S.ced) || '').trim();
+  if(!ced) return;
+  if(!MISIONES_LOCAL[ced]) MISIONES_LOCAL[ced] = {};
+  if(MISIONES_LOCAL[ced][String(misionId)] === 'aprobada' && estado !== 'aprobada'){
+    return;
+  }
+  MISIONES_LOCAL[ced][String(misionId)] = estado;
   localStorage.setItem('misiones_estado_local', JSON.stringify(MISIONES_LOCAL));
+  if(estado === 'aprobada'){
+    quitarPendienteLocalMision(misionId, ced);
+  }
 }
+
+function yaTieneMisionValidada(misionId, cedula=null, nombreHint=''){
+  const mIdStr = String(misionId);
+  const cedStr = String(cedula || (S && S.ced) || '').trim();
+  const res = resolverDatosUsuario(cedStr, nombreHint);
+  const nNorm = norm(res.nombre);
+
+  if(cedStr && MISIONES_LOCAL[cedStr] && MISIONES_LOCAL[cedStr][mIdStr] === 'aprobada'){
+    return true;
+  }
+
+  const mObj = (MISIONES || []).find(x => String(x.id) === mIdStr);
+  if(mObj){
+    const compList = Array.isArray(mObj.completados) ? mObj.completados : [];
+    const enCompletados = nNorm && compList.some(c => norm(c) === nNorm);
+    if(enCompletados) return true;
+    if(!S?.a && cedStr && String(S.ced) === cedStr && (mObj.completada || mObj.estado_usuario === 'aprobada')){
+      return true;
+    }
+  }
+  return false;
+}
+
 function saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas, insigniaNombre, insigniaIcono){
   MISIONES_META_LOCAL[norm(titulo)] = {
     obligatoria: !!obligatoria,
@@ -515,6 +547,7 @@ function saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedul
   };
   localStorage.setItem('misiones_meta_local', JSON.stringify(MISIONES_META_LOCAL));
 }
+
 function enrichMisiones(rawList){
   return (rawList || []).map(m => {
     const titulo = m.titulo || m.nombre || 'Misión';
@@ -527,9 +560,20 @@ function enrichMisiones(rawList){
     const insignia_nombre = (m.insignia_nombre && m.insignia_nombre.trim()) || metaLoc.insignia_nombre || ('Insignia: ' + titulo);
     const insignia_icono = (m.insignia_icono && m.insignia_icono.trim()) || metaLoc.insignia_icono || '🏅';
 
+    const completadosRaw = Array.isArray(m.completados) ? m.completados : [];
+    const completados = Array.from(new Set(completadosRaw.map(c => String(c).trim()).filter(Boolean)));
+    const completadosNorm = new Set(completados.map(c => norm(c)));
+
+    if(!S?.a && S?.ced){
+      const locEst = getEstadoLocalMision(m.id, S.ced);
+      if(m.completada || m.estado_usuario === 'aprobada' || locEst === 'aprobada'){
+        setEstadoLocalMision(m.id, 'aprobada', S.ced);
+        quitarPendienteLocalMision(m.id, S.ced);
+      }
+    }
+
     const remPend = Array.isArray(m.pendientes_validacion) ? m.pendientes_validacion : [];
     const locPend = MISIONES_PENDIENTES_LOCAL[String(m.id)] || [];
-    const completadosNorm = new Set((m.completados || []).map(c => norm(c)));
     const mapPend = new Map();
 
     [...remPend, ...locPend].forEach(pv => {
@@ -537,6 +581,7 @@ function enrichMisiones(rawList){
       const res = resolverDatosUsuario(pv.cedula, pv.nombre);
       if(!res.cedula && !pv.nombre) return;
       if(completadosNorm.has(norm(res.nombre))) return;
+      if(res.cedula && MISIONES_LOCAL[res.cedula] && MISIONES_LOCAL[res.cedula][String(m.id)] === 'aprobada') return;
       const key = res.cedula || norm(res.nombre);
       if(!mapPend.has(key)){
         mapPend.set(key, {
@@ -547,6 +592,10 @@ function enrichMisiones(rawList){
       }
     });
 
+    const yaValidadaActual = (!S?.a && S?.ced)
+      ? (!!m.completada || m.estado_usuario === 'aprobada' || getEstadoLocalMision(m.id, S.ced) === 'aprobada' || (D?.nombre && completadosNorm.has(norm(D.nombre))))
+      : false;
+
     return {
       ...m,
       titulo,
@@ -555,6 +604,9 @@ function enrichMisiones(rawList){
       asignados_cedulas,
       insignia_nombre,
       insignia_icono,
+      completados,
+      completada: yaValidadaActual ? true : !!m.completada,
+      estado_usuario: yaValidadaActual ? 'aprobada' : m.estado_usuario,
       pendientes_validacion: Array.from(mapPend.values())
     };
   });
@@ -606,6 +658,7 @@ function getPendientesMisionesAdmin(){
   (MISIONES || []).forEach(m => {
     (m.pendientes_validacion || []).forEach(pv => {
       const res = resolverDatosUsuario(pv.cedula, pv.nombre);
+      if(yaTieneMisionValidada(m.id, res.cedula, res.nombre)) return;
       const uniqueKey = `${m.id}::${res.cedula || norm(res.nombre)}`;
       if(seen.has(uniqueKey)) return;
       seen.add(uniqueKey);
@@ -710,15 +763,16 @@ function detectarYNotificarCambios(prevState, nextState){
         const fueAprobada = (!oldM || !oldM.completada) && !!m.completada;
         const fueRechazada = (!oldM || oldM.estado_usuario !== 'rechazada') && m.estado_usuario === 'rechazada';
         if(fueAprobada){
+          setEstadoLocalMision(m.id, 'aprobada', S.ced);
           notify(
             '🏅 ¡Misión validada!',
-            `Ganaste +${m.puntos} pts y tu insignia ${m.insignia_icono} ${m.insignia_nombre}.`,
+            `Ganaste +${m.puntos} pts y tu insignia ${m.insignia_icono} ${m.insignia_nombre}. Esta misión ya no puede repetirse.`,
             'success',
             '',
             `mis-val-${m.id}`
           );
         }else if(fueRechazada){
-          setEstadoLocalMision(m.id, 'rechazada');
+          setEstadoLocalMision(m.id, 'rechazada', S.ced);
           notify(
             '❌ Misión rechazada',
             `Tu solicitud en "${m.titulo}" fue rechazada y la misión quedó cerrada.`,
@@ -993,6 +1047,7 @@ function setupRealtime(){
     const res = resolverDatosUsuario(payload?.cedula, payload?.nombre);
     const mId = payload?.mision_id;
     const mTit = payload?.mision_titulo || 'una misión';
+    if(yaTieneMisionValidada(mId, res.cedula, res.nombre)) return;
     if(mId && res.cedula){
       guardarPendienteLocalMision(mId, res.cedula, res.nombre, payload?.nota || '', payload?.solicitada_en || new Date().toISOString());
       MISIONES = enrichMisiones(MISIONES);
@@ -1027,7 +1082,7 @@ function setupRealtime(){
     if(!S || S.a) return;
     if(payload?.cedula && String(payload.cedula) !== String(S.ced)) return;
     if(payload?.mision_id){
-      setEstadoLocalMision(payload.mision_id, payload.aprobada ? 'aprobada' : 'rechazada');
+      setEstadoLocalMision(payload.mision_id, payload.aprobada ? 'aprobada' : 'rechazada', payload?.cedula || S.ced);
     }
     notify(
       payload?.aprobada ? '✅ ¡Validación aprobada!' : '❌ Misión rechazada',
@@ -1196,9 +1251,10 @@ function getMisionesVisiblesUsuario(){
   return (MISIONES || [])
     .filter(esMisionParaUsuario)
     .map(m => {
-      const loc = getEstadoLocalMision(m.id);
-      const est = m.completada ? 'aprobada' : (m.estado_usuario || loc || null);
-      return { ...m, _est: est };
+      const validada = yaTieneMisionValidada(m.id, S?.ced, D?.nombre);
+      const loc = getEstadoLocalMision(m.id, S?.ced);
+      const est = validada ? 'aprobada' : (m.estado_usuario || loc || null);
+      return { ...m, completada: validada, _est: est };
     })
     .filter(m => m.obligatoria || m._est !== 'omitida');
 }
@@ -1206,10 +1262,7 @@ function getMisionesVisiblesUsuario(){
 function getInsigniasGanadasUsuario(){
   return (MISIONES || [])
     .filter(esMisionParaUsuario)
-    .filter(m => {
-      const loc = getEstadoLocalMision(m.id);
-      return !!m.completada || m.estado_usuario === 'aprobada' || loc === 'aprobada';
-    });
+    .filter(m => yaTieneMisionValidada(m.id, S?.ced, D?.nombre));
 }
 
 function getDesglosePuntosUsuario(ptsRankingTotal=0){
@@ -1267,16 +1320,23 @@ function getMisionesUsuarioPorNombre(nombre, cedula=''){
   const cedStr = String(cedula || '').trim();
   const ganadas = [];
   (MISIONES || []).forEach(m => {
-    const compList = Array.isArray(m.completados) ? m.completados : [];
-    const enCompletados = compList.some(c => norm(c) === nNorm);
-    const locAprobada = cedStr && MISIONES_LOCAL[cedStr] && MISIONES_LOCAL[cedStr][String(m.id)] === 'aprobada';
-    if(enCompletados || locAprobada){
+    if(yaTieneMisionValidada(m.id, cedStr, nombre)){
       ganadas.push({
         id: m.id,
         titulo: m.titulo,
         puntos: Number(m.puntos) || 0,
         icono: m.insignia_icono || '🏅'
       });
+    }else{
+      const compList = Array.isArray(m.completados) ? m.completados : [];
+      if(nNorm && compList.some(c => norm(c) === nNorm)){
+        ganadas.push({
+          id: m.id,
+          titulo: m.titulo,
+          puntos: Number(m.puntos) || 0,
+          icono: m.insignia_icono || '🏅'
+        });
+      }
     }
   });
   return {
@@ -1565,7 +1625,7 @@ function drawUser(){
     <div class="row">
       <div>
         <h3 style="margin:0">🏅 Mis insignias ganadas (${insigniasGanadas.length})</h3>
-        <div class="mute">Se desbloquean cuando el admin valida una misión completada. Haz clic para compartir su imagen.</div>
+        <div class="mute">Se desbloquean cuando el admin valida una misión completada (cada misión validada se otorga una sola vez). Haz clic para compartir su imagen.</div>
       </div>
     </div>
     ${insigniasGanadas.length
@@ -1596,7 +1656,7 @@ function drawUser(){
   }else if(userTab === 'misiones'){
     cuerpoUser = (S.creador ? panelCreadorMisionesHtml() : '')
       + bloqueInsignias
-      + `<div class="card"><h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2><p class="mute">Recibes alertas al instante cuando se publica una nueva misión. Las misiones <b>obligatorias</b> no pueden omitirse.</p></div>`
+      + `<div class="card"><h2 style="margin-top:0">🚀 Apartado de Misiones y Retos</h2><p class="mute">Recibes alertas al instante cuando se publica una nueva misión. Una vez que el admin valide una misión, <b>no podrá volverse a realizar</b>. Las misiones <b>obligatorias</b> no pueden omitirse.</p></div>`
       + seccionRetosUsuario();
   }else if(userTab === 'negativos'){
     cuerpoUser = `<div class="card">
@@ -1690,7 +1750,7 @@ function seccionRetosUsuario(){
   if(!lista.length) return '<div class="card"><p class="mute" style="margin:0">No hay misiones activas o pendientes por mostrar en este momento.</p></div>';
 
   return lista.map(m => {
-    const completada = m._est === 'aprobada' || !!m.completada;
+    const completada = yaTieneMisionValidada(m.id, S?.ced, D?.nombre) || m._est === 'aprobada' || !!m.completada;
     const rechazada = !completada && m._est === 'rechazada';
     const pendienteVal = !completada && !rechazada && m._est === 'pendiente';
     const vencidaSinCompletar = !completada && !rechazada && !pendienteVal && !!(m.fecha_limite && new Date(m.fecha_limite) < new Date());
@@ -1702,23 +1762,23 @@ function seccionRetosUsuario(){
         <div>
           <b style="font-size:1.1rem">${esc(m.titulo)}</b>
           <span class="tag ${completada?'aprobada':(rechazada||vencidaSinCompletar)?'rechazada':pendienteVal?'pendiente':aceptada?'aceptada':''}" style="margin-left:6px">
-            ${rechazada ? 'Rechazada' : vencidaSinCompletar ? 'Fuera de tiempo' : '+' + m.puntos + ' pts'}
+            ${completada ? 'Completada y validada · +' + m.puntos + ' pts' : rechazada ? 'Rechazada' : vencidaSinCompletar ? 'Fuera de tiempo' : '+' + m.puntos + ' pts'}
           </span>
           <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
           ${m.obligatoria
             ? '<span class="tag oblig" style="margin-left:4px">🔒 Misión obligatoria</span>'
             : '<span class="tag" style="margin-left:4px">Opcional</span>'}
         </div>
-        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${rechazada ? 'Misión cerrada' : vencidaSinCompletar ? 'Tiempo agotado' : esc(tiempoRestante(m.fecha_limite))}</span>
+        <span class="timer-pill" data-deadline="${esc(m.fecha_limite||'')}">⏳ ${completada ? 'Validada · Sin reintentos' : rechazada ? 'Misión cerrada' : vencidaSinCompletar ? 'Tiempo agotado' : esc(tiempoRestante(m.fecha_limite))}</span>
       </div>
       ${m.descripcion ? `<p style="margin:6px 0">${esc(m.descripcion)}</p>` : ''}
       <div class="ev-box">
-        <b>📸 Evidencia:</b> ${m.obligatoria ? 'Esta misión es <b>obligatoria</b> y no se puede omitir. ' : ''}Envía la foto/captura al jefe y marca que la completaste para validar tus puntos y desbloquear tu insignia.
+        <b>📸 Evidencia:</b> ${completada ? 'Esta misión ya fue <b>completada y validada</b>; por control de puntaje no puede realizarse de nuevo. ' : (m.obligatoria ? 'Esta misión es <b>obligatoria</b> y no se puede omitir. ' : '')}Envía la foto/captura al jefe y marca que la completaste para validar tus puntos y desbloquear tu insignia.
       </div>
       <div style="margin-top:8px">
         ${completada
           ? `<div class="row">
-               <span class="ok">✔ ¡Misión completada y validada! Insignia ganada: <b>${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</b></span>
+               <span class="ok">✔ ¡Misión completada y validada (no repetible)! Insignia ganada: <b>${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</b></span>
                <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(m.titulo)}, ${Number(m.puntos)||0}, ${jsArg(m.insignia_icono)}, ${jsArg(m.insignia_nombre)})'>📤 Compartir imagen de logro</button>
              </div>`
           : rechazada
@@ -1753,7 +1813,12 @@ function seccionRetosUsuario(){
 }
 
 async function aceptarMision(misionId, titulo){
-  setEstadoLocalMision(misionId, 'aceptada');
+  if(yaTieneMisionValidada(misionId, S?.ced, D?.nombre)){
+    notify('🔒 Misión ya validada', `"${titulo}" ya fue completada y validada; no puede realizarse nuevamente.`, 'info', '', `mis-dup-acc-${misionId}`);
+    drawUser();
+    return;
+  }
+  setEstadoLocalMision(misionId, 'aceptada', S?.ced);
   notify('✋ ¡Misión aceptada!', `Aceptaste "${titulo}". Revisa el tiempo restante para completarla.`, 'success');
   try{
     await rpc('responder_mision', {
@@ -1769,7 +1834,7 @@ async function omitirMision(misionId, titulo){
     alert('Esta misión es obligatoria y no se puede omitir.');
     return;
   }
-  setEstadoLocalMision(misionId, 'omitida');
+  setEstadoLocalMision(misionId, 'omitida', S?.ced);
   notify('⏭️ Misión omitida', `Omitiste "${titulo}". No aparecerá en tu lista activa.`, 'info');
   try{
     await rpc('responder_mision', {
@@ -1780,6 +1845,15 @@ async function omitirMision(misionId, titulo){
 }
 
 async function marcarMisionCompletada(misionId, tituloMision='Misión'){
+  const res = resolverDatosUsuario(S.ced, D && D.nombre);
+  if(yaTieneMisionValidada(misionId, res.cedula, res.nombre)){
+    setEstadoLocalMision(misionId, 'aprobada', res.cedula);
+    quitarPendienteLocalMision(misionId, res.cedula);
+    notify('🔒 Misión ya validada', `Ya completaste y validaste "${tituloMision}". No se permite realizarla de nuevo para evitar puntos duplicados.`, 'warn', '', `mis-dup-send-${misionId}`);
+    drawUser();
+    return;
+  }
+
   const mObj = MISIONES.find(x => Number(x.id) === Number(misionId));
   if(mObj && mObj.fecha_limite && new Date(mObj.fecha_limite) < new Date()){
     alert('El tiempo de esta misión ya se agotó y quedó cerrada como no completada por fuera de tiempo.');
@@ -1789,10 +1863,9 @@ async function marcarMisionCompletada(misionId, tituloMision='Misión'){
 
   const elNota = $('#ev-nota-' + misionId);
   const nota = elNota ? elNota.value.trim() : '';
-  const res = resolverDatosUsuario(S.ced, D && D.nombre);
   const ahoraIso = new Date().toISOString();
 
-  setEstadoLocalMision(misionId, 'pendiente');
+  setEstadoLocalMision(misionId, 'pendiente', res.cedula);
   guardarPendienteLocalMision(misionId, res.cedula, res.nombre, nota, ahoraIso);
   MISIONES = enrichMisiones(MISIONES);
 
@@ -2613,564 +2686,4 @@ function adminMisionesView(){
   const pendientesList = getPendientesMisionesAdmin();
   const usuariosList = (D && D.usuarios) ? D.usuarios : [];
 
-  const bandejaPropuestas = propuestasPend.length ? `<div class="card" style="border-left:5px solid var(--purple)">
-    <h3 style="margin-bottom:6px">📝 Misiones propuestas por aprobar (${propuestasPend.length})</h3>
-    <p class="mute" style="margin-top:0">Revisa las misiones creadas por el perfil Creador de misiones para aprobarlas y publicarlas o rechazarlas.</p>
-    ${propuestasPend.map(pr => `
-      <div class="sol-row">
-        <div>
-          <div class="sol-who">📝 Propuesta por ${esc(pr.creador_nombre || 'Creador')} <span class="mute">(CC ${esc(pr.creador_ced || 'N/A')})</span></div>
-          <div style="margin-top:3px"><b>${esc(pr.titulo)}</b> <span class="tag aprobada">+${pr.puntos} pts</span> <span class="tag badge-pill">${esc(pr.insignia_icono)} ${esc(pr.insignia_nombre)}</span> ${pr.obligatoria?'<span class="tag oblig">🔒 Obligatoria</span>':'<span class="tag">Opcional</span>'}</div>
-          ${pr.descripcion ? `<div class="mute" style="margin-top:3px">${esc(pr.descripcion)}</div>` : ''}
-          <div class="mute" style="font-size:.82rem;margin-top:2px">${esc(resumenAsignacion(pr))} · <span data-deadline="${esc(pr.fecha_limite||'')}">⏳ ${esc(tiempoRestante(pr.fecha_limite))}</span></div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" onclick='resolverPropuestaMision(${jsArg(pr.prop_id)}, true)'>✔ Aprobar y publicar</button>
-          <button type="button" class="sec" style="color:var(--coral)" onclick='resolverPropuestaMision(${jsArg(pr.prop_id)}, false)'>Rechazar</button>
-        </div>
-      </div>
-    `).join('')}
-  </div>` : '';
-
-  const bandejaPendientes = `<div class="card" style="border-left:5px solid var(--gold)">
-    <h3 style="margin-bottom:6px">📥 Bandeja de solicitudes por persona (${pendientesList.length} enviadas a validación)</h3>
-    <p class="mute" style="margin-top:0">Cada fila identifica exactamente quién envió la solicitud para que puedas aprobar o rechazar a esa persona en específico.</p>
-    ${pendientesList.length ? pendientesList.map(item => {
-      const res = resolverDatosUsuario(item.cedula, item.nombre);
-      const fechaSol = item.solicitada_en ? new Date(item.solicitada_en).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="sol-row">
-        <div>
-          <div class="sol-who">👤 ${esc(res.nombre)} <span class="mute">(CC ${esc(res.cedula || 'N/A')})</span> ${equipoLabel(getEquipo(res.nombre, res.cedula))}</div>
-          <div style="margin-top:3px">Misión enviada: <b>"${esc(item.mision_titulo)}"</b> <span class="tag aprobada">+${item.mision_puntos} pts</span> <span class="tag badge-pill">${esc(item.insignia_icono)} ${esc(item.insignia_nombre)}</span></div>
-          ${item.nota ? `<div class="mute" style="margin-top:3px">Evidencia / nota: ${esc(item.nota)}</div>` : ''}
-          ${fechaSol ? `<div class="mute" style="font-size:.78rem;margin-top:2px">Enviada el: ${esc(fechaSol)}</div>` : ''}
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button type="button" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, true, ${jsArg(res.nombre)})'>✔ Aprobar a ${esc(corto(res.nombre))}</button>
-          <button type="button" class="sec" style="color:var(--coral)" onclick='aprobarMisionDirecto(${Number(item.mision_id)}, ${jsArg(res.cedula)}, false, ${jsArg(res.nombre)})'>Rechazar a ${esc(corto(res.nombre))}</button>
-        </div>
-      </div>`;
-    }).join('') : '<p class="mute" style="margin:0">Ningún usuario tiene misiones pendientes de aprobación en este momento.</p>'}
-  </div>`;
-
-  return `${bandejaPropuestas}${bandejaPendientes}
-  <div class="card">
-    <h3 style="margin-bottom:8px">Crear nueva misión o reto con insignia</h3>
-    <label for="m-tit" style="font-size:.85rem">Nombre de la misión</label>
-    <input id="m-tit" placeholder="Nombre de la misión (ej: Cero recontactos hoy)">
-    <label for="m-desc" style="font-size:.85rem">Descripción o reglas del reto</label>
-    <textarea id="m-desc" rows="2" placeholder="Descripción o reglas del reto"></textarea>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div><label for="m-pts" style="font-size:.85rem">Puntos que otorga</label><input id="m-pts" type="number" placeholder="Ej: 10"></div>
-      <div><label for="m-lim" style="font-size:.85rem">Disponible hasta (fecha y hora)</label><input id="m-lim" type="datetime-local"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:110px 1fr;gap:8px">
-      <div><label for="m-ins-ico" style="font-size:.85rem">Ícono insignia</label><input id="m-ins-ico" value="🏅" maxlength="8"></div>
-      <div><label for="m-ins-nom" style="font-size:.85rem">Nombre de la insignia que gana el usuario</label><input id="m-ins-nom" placeholder="Ej: Maestro de Cero Recontactos (vacío = automático)"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center">
-      <div>
-        <label for="m-asig-tipo" style="font-size:.85rem">Asignar a</label>
-        <select id="m-asig-tipo" onchange="toggleSelectorAlgunos()">
-          <option value="todos">Todos los integrantes</option>
-          <option value="algunos">Solo algunos integrantes</option>
-        </select>
-      </div>
-      <div style="padding-top:14px">
-        <label for="m-oblig" class="chk-item">
-          <input id="m-oblig" type="checkbox">
-          <span><b>🔒 Misión obligatoria</b> (no se puede omitir)</span>
-        </label>
-      </div>
-    </div>
-    <div id="m-algunos-box" style="display:none">
-      <label style="font-size:.85rem">Selecciona a quiénes asignar esta misión:</label>
-      <div class="chk-list">
-        ${usuariosList.map(u => `
-          <label class="chk-item">
-            <input type="checkbox" class="m-asig-ced" value="${esc(u.cedula)}">
-            <span>${esc(u.nombre)} <span class="mute">(${getEquipo(u.nombre, u.cedula)})</span></span>
-          </label>
-        `).join('')}
-      </div>
-    </div>
-    <button type="button" onclick="crearMision()">Publicar misión e insignia</button>
-  </div>
-  <h2>Misiones activas y validación manual</h2>
-  ${MISIONES.length ? MISIONES.map(m => {
-    const marcadasPend = m.pendientes_validacion || [];
-    return `<div class="card reto-card ${m.obligatoria?'oblig-card':''}">
-      <div class="row">
-        <div>
-          <b>${esc(m.titulo)}</b>
-          <span class="tag aprobada" style="margin-left:6px">+${m.puntos} pts</span>
-          <span class="tag badge-pill" style="margin-left:4px">${esc(m.insignia_icono)} ${esc(m.insignia_nombre)}</span>
-          ${m.obligatoria ? '<span class="tag oblig" style="margin-left:4px">🔒 Obligatoria</span>' : '<span class="tag" style="margin-left:4px">Opcional</span>'}
-        </div>
-        <button type="button" class="sec" style="color:var(--coral)" onclick="g('admin_borrar_mision',{p_id:${m.id}})">Borrar</button>
-      </div>
-      <p class="mute" style="margin:4px 0">${esc(m.descripcion||'')} · <b>${esc(resumenAsignacion(m))}</b> · <span data-deadline="${esc(m.fecha_limite||'')}">⏳ ${esc(tiempoRestante(m.fecha_limite))}</span></p>
-      ${marcadasPend.length ? `<div style="margin:6px 0 0;font-size:.88rem"><b>Enviada por:</b> ${marcadasPend.map(pv=>{
-        const res = resolverDatosUsuario(pv.cedula, pv.nombre);
-        return `<span class="tag pendiente" style="margin-right:6px;margin-top:4px">👤 ${esc(res.nombre)} (CC ${esc(res.cedula||'N/A')})
-          <button type="button" style="padding:1px 7px;font-size:.75rem;margin-left:4px" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(res.cedula)}, true, ${jsArg(res.nombre)})'>✔ Aprobar</button>
-          <button type="button" class="sec" style="padding:1px 6px;font-size:.75rem;color:var(--coral);border:0" onclick='aprobarMisionDirecto(${Number(m.id)}, ${jsArg(res.cedula)}, false, ${jsArg(res.nombre)})'>×</button>
-        </span>`;
-      }).join('')}</div>` : ''}
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">
-        <label for="m-usr-${m.id}" style="font-size:.85rem">Validar cumplimiento manual:</label>
-        <div class="row">
-          <select id="m-usr-${m.id}" style="margin:0;flex:1">
-            ${usuariosList.map(u=>`<option value="${esc(u.cedula)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}
-          </select>
-          <button type="button" onclick="aprobarMision(${m.id})">✔ Validar y dar ${m.puntos} pts</button>
-        </div>
-        ${(m.completados&&m.completados.length) ? `<p style="margin:8px 0 0;font-size:.88rem"><b>Validado y completado por:</b> ${m.completados.map(c=>`<span class="tag aprobada" style="margin-right:4px">${esc(c)}</span>`).join('')}</p>` : ''}
-      </div>
-    </div>`;
-  }).join('') : '<p class="mute">No hay misiones creadas aún.</p>'}`;
-}
-
-async function crearMision(){
-  const titulo = $('#m-tit').value.trim();
-  const descripcion = $('#m-desc').value.trim();
-  const puntos = +$('#m-pts').value;
-  const limite = $('#m-lim').value ? new Date($('#m-lim').value).toISOString() : null;
-  const obligatoria = $('#m-oblig').checked;
-  const asignacionTipo = $('#m-asig-tipo').value;
-  const asignadosCedulas = asignacionTipo === 'algunos'
-    ? Array.from(document.querySelectorAll('.m-asig-ced:checked')).map(el => String(el.value))
-    : [];
-  const insigniaIcono = ($('#m-ins-ico').value || '🏅').trim();
-  const insigniaNombre = ($('#m-ins-nom').value || ('Insignia: ' + titulo)).trim();
-
-  if(!titulo || !puntos){ alert('Ingresa el nombre de la misión y los puntos'); return; }
-  if(asignacionTipo === 'algunos' && !asignadosCedulas.length){
-    alert('Selecciona al menos una persona para asignar la misión');
-    return;
-  }
-
-  saveMetaLocalMision(titulo, obligatoria, asignacionTipo, asignadosCedulas, insigniaNombre, insigniaIcono);
-
-  try{
-    await g('admin_crear_mision', {
-      p_titulo: titulo, p_descripcion: descripcion, p_puntos: puntos, p_fecha_limite: limite,
-      p_obligatoria: obligatoria, p_asignacion_tipo: asignacionTipo,
-      p_asignados_cedulas: asignadosCedulas, p_insignia_nombre: insigniaNombre, p_insignia_icono: insigniaIcono
-    });
-  }catch(e){
-    await g('admin_crear_mision', {
-      p_titulo: titulo, p_descripcion: descripcion, p_puntos: puntos, p_fecha_limite: limite
-    });
-  }
-
-  broadcastEvent('mision_publicada', {
-    titulo, puntos, obligatoria, asignacion_tipo: asignacionTipo,
-    asignados_cedulas: asignadosCedulas, insignia_nombre: insigniaNombre, insignia_icono: insigniaIcono
-  });
-  notify('🚀 Misión publicada en tiempo real', `Se alertó a los usuarios sobre "${titulo}".`, 'success', '', `pub-mis-${norm(titulo)}`);
-}
-
-async function aprobarMision(misionId){
-  const ced = $('#m-usr-'+misionId).value;
-  if(!ced) return;
-  const res = resolverDatosUsuario(ced);
-  await aprobarMisionDirecto(misionId, res.cedula, true, res.nombre);
-}
-
-async function aprobarMisionDirecto(misionId, ced, aprobar, nombreHint=''){
-  const res = resolverDatosUsuario(ced, nombreHint);
-  quitarPendienteLocalMision(misionId, res.cedula);
-  MISIONES = enrichMisiones(MISIONES);
-  await g('admin_aprobar_mision', {p_mision_id:misionId, p_ced:res.cedula, p_aprobar:aprobar});
-  broadcastEvent('validacion_resuelta', {
-    cedula: res.cedula, mision_id: misionId, aprobada: aprobar,
-    mensaje: aprobar ? '¡Tu misión fue aprobada y recibiste tus puntos e insignia!' : 'Tu solicitud fue rechazada y la misión quedó cerrada.'
-  });
-  if(aprobar){
-    notify('🏆 Aprobada: ' + res.nombre, `Se validó el cumplimiento de ${res.nombre} (CC ${res.cedula}).`, 'success', '', `apr-mis-${misionId}-${res.cedula}`);
-  }else{
-    notify('❌ Rechazada: ' + res.nombre, `Se rechazó la solicitud de ${res.nombre} (CC ${res.cedula}) y se cerró la misión.`, 'warn', '', `rej-mis-${misionId}-${res.cedula}`);
-  }
-}
-
-async function agregarOpcionConducta(){
-  const inp = $('#nueva-op-conducta');
-  const nom = inp ? inp.value.trim() : '';
-  if(!nom){ alert('Escribe el nombre de la opción de comportamiento'); return; }
-  if(!OPCIONES_CONDUCTA.includes(nom)){
-    OPCIONES_CONDUCTA = [...OPCIONES_CONDUCTA, nom];
-    localStorage.setItem('opciones_conducta_local', JSON.stringify(OPCIONES_CONDUCTA));
-  }
-  try{
-    await rpc('admin_crear_opcion_conducta', {p_admin: S.clave, p_nombre: nom});
-  }catch(e){}
-  notify('✔ Opción agregada', `"${nom}" ya está disponible para reportes de conducta.`, 'success');
-  drawAdmin();
-}
-
-async function borrarOpcionConducta(nombre){
-  if(OPCIONES_CONDUCTA.length <= 1){
-    alert('Debe quedar al menos una opción de comportamiento');
-    return;
-  }
-  OPCIONES_CONDUCTA = OPCIONES_CONDUCTA.filter(x => x !== nombre);
-  localStorage.setItem('opciones_conducta_local', JSON.stringify(OPCIONES_CONDUCTA));
-  try{
-    await rpc('admin_borrar_opcion_conducta', {p_admin: S.clave, p_nombre: nombre});
-  }catch(e){}
-  drawAdmin();
-}
-
-function adminNegativosView(){
-  const filtrados = adminFiltroEq==='global'
-    ? NEGATIVOS
-    : NEGATIVOS.filter(n => getEquipo(n.reportado_nombre) === adminFiltroEq);
-  const usuariosList = (D && D.usuarios) ? D.usuarios : [];
-
-  return `<div class="row" style="margin:6px 0 10px">
-    <h2 style="margin:0">📋 Tablero general de mal comportamiento (${adminFiltroEq==='global'?'Global':adminFiltroEq.toUpperCase()})</h2>
-    <div class="seg-switch" style="margin:0">
-      <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
-    </div>
-  </div>
-  ${construirTableroGeneralConducta(adminFiltroEq)}
-
-  <div class="card" style="border-left:5px solid var(--purple)">
-    <h3 style="margin-bottom:6px">⚙️ Opciones de comportamiento disponibles</h3>
-    <p class="mute" style="margin-top:0">Agrega nuevas opciones de comportamiento para que aparezcan en los reportes de conducta.</p>
-    <div class="row" style="gap:8px">
-      <label for="nueva-op-conducta" class="mute" style="font-size:.82rem">Nueva opción</label>
-      <input id="nueva-op-conducta" placeholder="Ej: No escaló a tiempo, Falta de empatía..." style="margin:0;flex:1">
-      <button type="button" onclick="agregarOpcionConducta()">+ Agregar opción</button>
-    </div>
-    <div class="badges-grid" style="margin-top:10px">
-      ${OPCIONES_CONDUCTA.map(op => `
-        <span class="tag" style="padding:5px 10px;display:inline-flex;align-items:center;gap:6px">
-          ${esc(op)}
-          <button type="button" class="sec" style="padding:0 5px;font-size:.78rem;color:var(--coral);border:0" onclick='borrarOpcionConducta(${jsArg(op)})'>×</button>
-        </span>
-      `).join('')}
-    </div>
-  </div>
-
-  <div class="card neg-card">
-    <h3 style="margin-bottom:6px">Registrar alerta anónima de conducta (1 pt · No resta puntos)</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div><label for="neg-per" style="font-size:.85rem">Persona</label><select id="neg-per">${usuariosList.map(u=>`<option value="${esc(u.nombre)}">${esc(u.nombre)} (${getEquipo(u.nombre, u.cedula)})</option>`).join('')}</select></div>
-      <div><label for="neg-tipo" style="font-size:.85rem">Tipo</label>${opcionesConductaSelectHtml('neg-tipo')}</div>
-    </div>
-    <label for="neg-mot" style="font-size:.85rem">Motivo</label><input id="neg-mot" placeholder="Motivo o descripción del comportamiento">
-    <button type="button" class="coral" onclick="reportarNegativo(true)">Guardar alerta anónima (1 pt)</button>
-  </div>
-  ${filtrados.length ? filtrados.map(n=>`<div class="card"><div class="row"><span><b>${esc(n.reportado_nombre)}</b> ${equipoLabel(getEquipo(n.reportado_nombre))} <span class="tag neg">1 pt</span> <span class="tag">${esc(n.tipo)}</span></span><button type="button" class="sec" onclick="g('admin_borrar_negativo',{p_id:${n.id}})">Borrar</button></div><p style="margin:6px 0">${esc(n.motivo)}</p><span class="mute">Registro anónimo · ${new Date(n.creada).toLocaleDateString('es')}</span></div>`).join('') : '<p class="mute">No hay alertas registradas en este filtro.</p>'}`;
-}
-
-const fdl=f=>{const p=f.split('-');return p[2]+'/'+p[1]+'/'+p[0]};
-function fechas(){
-  if(!F)return '';
-  const esp=F.usuarios*F.indicadores,ul=F.ultima?new Date(F.ultima).toLocaleString('es',{day:'numeric',month:'long',hour:'numeric',minute:'2-digit'}):'sin registro';
-  return `<h2>Fechas ya cargadas</h2><div class="card"><p class="mute">Revisa aquí antes de cargar para no repetir un día. Si cargas una fecha que ya existe, los resultados de esa fecha se reemplazan. Última carga: <b>${esc(ul)}</b>. Un día completo tiene ${esp} registros (${F.usuarios} personas × ${F.indicadores} indicadores).</p>`
-  +(F.fechas.length?`<div style="overflow-x:auto"><table class="fch"><tr><th>Fecha</th><th>Registros</th><th>Personas</th><th>Cumplidos</th><th>Estado</th><th colspan="2"></th></tr>`
-  +F.fechas.map(x=>{const ok=x.registros>=esp;return `<tr><td><b>${fdl(x.fecha)}</b></td><td>${x.registros}</td><td>${x.personas} de ${F.usuarios}</td><td>${x.registros?Math.round(x.cumplidos/x.registros*100):0}%</td><td><span class="est ${ok?'c':'i'}">${ok?'Completo':'Incompleto'}</span></td><td><button type="button" class="sec" onclick="$('#fe').value='${x.fecha}';avisoFecha();scrollTo(0,0)">Usar fecha</button></td><td><button type="button" class="sec" style="color:var(--coral)" onclick="borrarFecha('${x.fecha}',${x.registros})">Borrar</button></td></tr>`}).join('')+'</table></div>'
-  :'<p class="mute">Aún no hay fechas cargadas.</p>')+'</div>';
-}
-function borrarFecha(f,n){
-  if(!confirm('¿Borrar los '+n+' registros del '+fdl(f)+'? Los usuarios dejarán de ver ese día y sus puntos se descontarán. No se puede deshacer.'))return;
-  g('admin_borrar_fecha',{p_fecha:f});
-}
-function avisoFecha(){
-  const a=$('#aw');if(!a||!F)return;const d=F.fechas.find(x=>x.fecha===$('#fe').value);
-  a.textContent=d?`⚠ ${fdl(d.fecha)} ya tiene ${d.registros} registros cargados. Si guardas, se reemplazan los resultados de esa fecha.`:'';
-}
-const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',MIS_COL='#7c4dff',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
-const corto=n=>String(n||'').split(' ').slice(0,2).join(' ');
-function posView(){
-  if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
-  const P_ALL=G.personas;
-  const P = adminFiltroEq==='global' ? P_ALL : P_ALL.filter(p => getEquipo(p.nombre, p.cedula) === adminFiltroEq);
-  if(!P.length) return '<p class="mute">No hay integrantes en este equipo.</p>';
-
-  const ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
-  const ord=ind.map((x,k)=>k).sort((a,b)=>{const pa=PRI.indexOf(ind[a].nombre.toLowerCase()),pb=PRI.indexOf(ind[b].nombre.toLowerCase());return (pa<0?99:pa)-(pb<0?99:pb)||a-b});
-  const col=k=>PAL[ord.indexOf(k)%PAL.length],ip=(p,k)=>p.por_indicador[k].dias_ok*p.por_indicador[k].puntos;
-  if(!selP||!P.find(p=>p.cedula===selP))selP=P[0].cedula;
-  const perfect=ind.reduce((a,x)=>a+x.puntos,0);
-
-  let totIndEquipo=0, totMisEquipo=0, totIncEquipo=0, totPtsEquipo=0;
-  P.forEach(per => {
-    const pInd = ord.reduce((acc, k) => acc + ip(per, k), 0);
-    const misInfo = getMisionesUsuarioPorNombre(per.nombre, per.cedula);
-    const pMis = per.pts_misiones != null ? Number(per.pts_misiones) : misInfo.puntos;
-    const pInc = Number(per.pts_post) || 0;
-    totIndEquipo += pInd;
-    totMisEquipo += pMis;
-    totIncEquipo += pInc;
-    totPtsEquipo += Number(per.puntos) || (pInd + pMis + pInc);
-  });
-
-  const filtroBar = `<div class="row" style="margin-bottom:12px">
-    <h2 style="margin:0">📊 Dashboard de Origen de Puntos y Posiciones</h2>
-    <div class="seg-switch" style="margin:0">
-      <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
-      <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
-      <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
-    </div>
-  </div>
-  <div class="dash-kpis">
-    <div class="kpi-card k-ind">
-      <div class="k-lbl">📊 Puntos por Indicadores</div>
-      <div class="k-val" style="color:var(--teal)">${totIndEquipo} <small style="font-size:1rem">pts</small></div>
-      <div class="k-sub">${totPtsEquipo?Math.round(totIndEquipo/totPtsEquipo*100):0}% del total · ${P.length} integrantes</div>
-    </div>
-    <div class="kpi-card k-mis">
-      <div class="k-lbl">🚀 Puntos por Misiones</div>
-      <div class="k-val" style="color:var(--purple)">${totMisEquipo} <small style="font-size:1rem">pts</small></div>
-      <div class="k-sub">${totPtsEquipo?Math.round(totMisEquipo/totPtsEquipo*100):0}% del total en misiones validadas</div>
-    </div>
-    <div class="kpi-card k-inc">
-      <div class="k-lbl">🌟 Atenciones Increíbles</div>
-      <div class="k-val" style="color:#c98a0b">${totIncEquipo} <small style="font-size:1rem">pts</small></div>
-      <div class="k-sub">${totPtsEquipo?Math.round(totIncEquipo/totPtsEquipo*100):0}% del total en casos aprobados</div>
-    </div>
-    <div class="kpi-card k-tot">
-      <div class="k-lbl">🏆 Puntaje Total (${adminFiltroEq==='global'?'Operación':adminFiltroEq.toUpperCase()})</div>
-      <div class="k-val">${totPtsEquipo} <small style="font-size:1rem">pts</small></div>
-      <div class="k-sub">Mes: ${esc(G.mes)} · ${nf} días con registro</div>
-    </div>
-  </div>`;
-
-  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Misiones y Atenciones</b><span class="mute">Las misiones validadas suman los puntos configurados en cada reto; las atenciones increíbles aprobadas suman ${PTS_INCREIBLE} pts.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
-  const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${MIS_COL}"></i>Misiones</span><span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
-  const bars=P.map((p,j)=>{
-    const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-    const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
-    return `<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${pMis?`<i style="width:${pMis/mx*100}%;background:${MIS_COL}" title="Misiones: ${pMis} pts"></i>`:''}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`;
-  }).join('');
-  const motivo=j=>{const p=P[j];
-    const fz=ord.filter(k=>p.por_indicador[k].dias_total>0).map(k=>({n:ind[k].nombre,r:p.por_indicador[k].dias_ok/p.por_indicador[k].dias_total,o:p.por_indicador[k].dias_ok,t:p.por_indicador[k].dias_total}));
-    let a='';if(fz.length){const mj=fz.reduce((x,y)=>y.r>x.r?y:x),pe=fz.reduce((x,y)=>y.r<x.r?y:x);a=` Más fuerte: ${esc(mj.n)} (${mj.o}/${mj.t} días). ${pe.r<1&&pe!==mj?`A reforzar: ${esc(pe.n)} (${pe.o}/${pe.t}).`:''}`}
-    if(j===0)return `Lidera${P[1]?` con ${p.puntos-P[1].puntos} pts sobre ${esc(corto(P[1].nombre))}`:''}.${a}`;
-    const u=P[j-1],dif=u.puntos-p.puntos;
-    if(!dif)return `Empatado en ${p.puntos} pts con ${esc(corto(u.nombre))}; el desempate es por nombre.${a}`;
-    const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
-    return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
-  const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Total</th><th>Pts Indicadores</th><th>Pts Misiones</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
-   +P.map((p,j)=>{
-     const pIndTot = ord.reduce((acc, k) => acc + ip(p, k), 0);
-     const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-     const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
-     const cantMis = p.misiones_ok != null ? Number(p.misiones_ok) : misInfo.cantidad;
-     return `<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td><td><b style="color:var(--teal)">${pIndTot} pts</b></td><td><b style="color:var(--purple)">${pMis} pts</b><br><span class="mute">${cantMis} ${cantMis===1?'misión':'misiones'}</span></td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes})</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${5+ord.length}">${motivo(j)}</td></tr>`;
-   }).join('')+'</table></div>';
-  const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
-   +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
-  const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
-  const pIndInd = ord.reduce((acc, k) => acc + ip(p, k), 0);
-  const misInfoInd = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-  const pMisInd = p.pts_misiones != null ? Number(p.pts_misiones) : misInfoInd.puntos;
-  const cantMisInd = p.misiones_ok != null ? Number(p.misiones_ok) : misInfoInd.cantidad;
-
-  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post-pMisInd);
-  const sv=G.fechas.map((f,i)=>{const d=dm[f],x=30+i*stp,h=d?d.pts/Math.max(1,perfect)*(Hh-40):0;return `<rect x="${x}" y="${Hh-20-h}" width="${bw}" height="${Math.max(h,d?2:0)}" rx="2" fill="${d&&d.ok===d.total?GOLD:'#0e8f83'}"><title>${f}: ${d?d.pts+' pts · '+d.ok+' de '+d.total:'sin registros'}</title></rect><text x="${x+bw/2}" y="${Hh-6}" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6">${f.slice(8)}</text>`}).join('');
-  const pts=G.fechas.map((f,i)=>{acc+=dm[f]?dm[f].pts:0;return `${(30+i*stp+bw/2).toFixed(1)},${(Hh-20-acc/tot*(Hh-40)).toFixed(1)}`}).join(' ');
-  const dd=p.dias,perf=dd.filter(d=>d.ok===d.total).length,mejor=dd.reduce((a,d)=>Math.max(a,d.pts),0),okT=dd.reduce((a,d)=>a+d.ok,0),tT=dd.reduce((a,d)=>a+d.total,0);
-  const det=`<div class="row row2" style="max-width:420px"><label for="sel-persona-det">Persona</label><select id="sel-persona-det" onchange="selP=this.value;drawAdmin()">${P.map((x,j)=>`<option value="${x.cedula}" ${x.cedula===selP?'selected':''}>${j+1}. ${esc(x.nombre)}</option>`).join('')}</select></div>
-   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos} pts</b>Total · Ind: ${pIndInd} · Mis: ${pMisInd}</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
-   <p class="mute" style="margin:0 0 4px"><b style="color:var(--ink)">Cómo llegó a ${p.puntos} puntos</b></p>
-   ${ord.map(k=>{const x=p.por_indicador[k],r=x.dias_total?x.dias_ok/x.dias_total*100:0;return `<div class="cmpb"><span>${esc(x.nombre)}</span><span class="tr"><i style="width:${r}%;background:${col(k)}"></i></span><span>${x.dias_ok} de ${x.dias_total} días × ${x.puntos} = <b>${ip(p,k)}</b></span></div>`}).join('')}
-   <div class="cmpb"><span>🚀 Misiones</span><span class="tr"><i style="width:${pMisInd?100:0}%;background:${MIS_COL}"></i></span><span>${cantMisInd} ${cantMisInd===1?'misión validada':'misiones validadas'} = <b>${pMisInd} pts</b></span></div>
-   <div class="cmpb"><span>🌟 Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
-   <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
-   <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
-  return `${filtroBar}${ex}
-  <div class="card"><b>Cómo se compone el puntaje de cada persona</b>${leg}${bars}</div>
-  <div class="card"><b>Detalle por persona (Indicadores vs. Misiones)</b><p class="mute" style="margin:2px 0 8px">Comparativo directo de puntos por indicadores, puntos por misiones y atenciones increíbles.</p>${tabla}</div>
-  <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
-  <div class="card"><b>Análisis individual</b>${det}</div>`;
-}
-let popOpen=false;
-const perfectDay=()=>((D && D.indicadores) || []).reduce((a,x)=>a+x.puntos,0);
-function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
-function mision(){
-  const pd=perfectDay(),n=((D && D.indicadores) || []).length;
-  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble.</p>
-  <div class="chips">${((D && D.indicadores) || []).map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
-  <div class="btns"><button type="button" data-user-action="post">✨ Postular una atención</button><button type="button" class="sec" data-user-action="help">💡 ¿Cómo funciona?</button></div></div>`;
-}
-function incCards(pts){
-  const inc=((D && D.incentivos) || []).map(enrichIncentivo).slice().sort((a,b)=>(a.tipo_meta==='indicador'?1:0)-(b.tipo_meta==='indicador'?1:0)||(a.meta-b.meta));
-  const pd=perfectDay(),r=ritmo();
-  if(!inc.length)return '<p class="mute">Aún no hay premios a conseguir definidos para este mes.</p>';
-
-  return inc.map(n=>{
-    if(n.tipo_meta === 'indicador'){
-      const val = getValidacionIncentivoUsuario(n.id, S.ced);
-      const est = val ? val.estado : null;
-      const validado = est === 'aprobada';
-      const pendienteLider = est === 'pendiente';
-      const rechazada = est === 'rechazada';
-      const rb = validado ? 'VALIDADO POR LÍDER 🏆' : pendienteLider ? 'EN VALIDACIÓN LÍDER ⏳' : 'META POR INDICADOR 🎯';
-
-      return `<div class="card inc ${validado?'lg':''}"><span class="rb">${rb}</span>
-      <div class="pr"><span class="gift">${validado?'🏆':'🎯'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · Indicador: <b>${esc(n.indicador_nombre)}</b> · Meta: <b>${esc(n.meta_indicador)}</b></span></div></div>
-      <div class="lider-box">
-        <div><b>🕒 Cierre / Corte del indicador:</b> ${esc(n.corte_indicador || 'Cierre de mes')}</div>
-        <div class="mute" style="margin-top:3px">Este incentivo se valida con tu líder al cierre o corte del indicador.</div>
-        ${validado
-          ? `<div class="row" style="margin-top:8px">
-               <span class="ok">✔ Cierre/corte validado por el líder${val && val.nota_lider ? ' · ' + esc(val.nota_lider) : ''}</span>
-               <button type="button" class="gold" onclick='copiarImagenLogro(${jsArg(n.nombre)}, 0, "🏆", ${jsArg(n.premio)}, ${jsArg("Premio validado por indicador (" + (n.indicador_nombre||"") + " · " + (n.corte_indicador||"") + "):")})'>📤 Compartir imagen de logro</button>
-             </div>`
-          : pendienteLider
-            ? `<div style="margin-top:8px"><span class="tag pendiente">⏳ Solicitud enviada · Esperando validación del líder en ${esc(n.corte_indicador)}</span></div>`
-            : `<div style="margin-top:8px">
-                 ${rechazada ? `<div class="err" style="min-height:0;margin-bottom:6px">Observación del líder: ${esc((val && val.nota_lider) || 'Revisa el resultado del corte/cierre.')}</div>` : ''}
-                 <label for="val-inc-nota-${n.id}" style="font-size:.85rem">Resultado o evidencia</label>
-                 <input id="val-inc-nota-${n.id}" placeholder="Opcional: resultado del cierre/corte o enlace de evidencia">
-                 <button type="button" onclick='solicitarValidacionIncentivo(${Number(n.id)}, ${jsArg(n.nombre)}, ${jsArg(n.corte_indicador)})'>✔ Solicitar validación de cierre/corte con el líder</button>
-               </div>`
-        }
-      </div></div>`;
-    }
-
-    const pct=Math.min(100,Math.round(pts/Math.max(1,n.meta)*100)),falta=n.meta-pts,ok=falta<=0,cerca=!ok&&pct>=80;
-    const rb=ok?'¡META ALCANZADA! 🏆':cerca?'¡CASI LO TIENES! 🔥':'PREMIO A CONSEGUIR ✨';
-    let how='';
-    if(!ok&&pd){
-      const dp=Math.ceil(falta/pd),dp2=Math.ceil(Math.max(0,falta-PTS_INCREIBLE)/pd),pl=k=>k===1?'':'s';
-      how=`<div class="how"><b>🧭 ¿Cómo lo puedes conseguir?</b><ul>`
-      +(falta<=PTS_INCREIBLE?`<li>¡Una sola <b>atención increíble aprobada</b> (+${PTS_INCREIBLE} pts) te lleva a la meta!</li>`:`<li><b>${dp} día${pl(dp)} perfecto${pl(dp)}</b>, cumpliendo todos los indicadores (${pd} pts por día).</li><li>O <b>1 atención increíble aprobada</b> (+${PTS_INCREIBLE}) más <b>${dp2} día${pl(dp2)} perfecto${pl(dp2)}</b>.</li>`)
-      +(r>0?`<li>A tu ritmo actual (${r.toFixed(1)} pts por día) alcanzarías la meta en unos <b>${fmtDias(Math.ceil(falta/r))} con registro</b>.</li>`:'')+`</ul></div>`;
-    }
-    return `<div class="card inc ${ok?'lg':cerca?'cerca':''}"><span class="rb">${rb}</span>
-    <div class="pr"><span class="gift">${ok?'🏆':'🎁'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · meta ${n.meta} pts</span></div></div>
-    <div class="nums"><div>${ok?'<span class="big">¡Meta alcanzada!</span>':`<span class="big">${falta}</span> <span class="mute">pts para alcanzarlo</span>`}</div><b>${pct}%</b></div>
-    <div class="track ${ok?'ok':''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
-    <span class="mute">Llevas ${pts} de ${n.meta} puntos${ok?'. ¡Felicitaciones!':''}</span>${how}</div>`;
-  }).join('');
-}
-function misInd(){
-  const d=(H&&H.dias)||[],st={};
-  d.forEach(x=>x.indicadores.forEach(i=>{const q=st[i.nombre]=st[i.nombre]||{ok:0,t:0};q.t++;if(i.cumplido)q.ok++}));
-  const rows=((D && D.indicadores) || []).map(i=>{const q=st[i.nombre]||{ok:0,t:0};return{...i,ok:q.ok,t:q.t,perd:(q.t-q.ok)*i.puntos}});
-  const opp=rows.filter(x=>x.perd>0).sort((a,b)=>b.perd-a.perd)[0];
-  return rows.map(x=>{const p=x.t?Math.round(x.ok/x.t*100):0;return `<div class="card ib"><div class="tp"><span><b>${esc(x.nombre)}</b> <span class="mute">· ${x.puntos} pts por día cumplido</span></span><b>${x.dias*x.puntos} pts</b></div><div class="tr" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p}%;background:${p>=80?'var(--teal)':p>=50?'var(--gold)':'var(--coral)'}"></i></div><span class="mute">${x.t?`Lo cumpliste ${x.ok} de ${fmtDias(x.t)} (${p}%)`:'Aún sin registros este mes'}</span></div>`}).join('')
-  +(opp?`<div class="card opp"><b>💎 Tu mayor oportunidad: ${esc(opp.nombre)}</b><br><span>Este mes dejaste de sumar <b>${opp.perd} pts</b> aquí (${fmtDias(opp.t-opp.ok)} sin cumplir × ${opp.puntos} pts). Cumplirlo cada día es el camino más rápido para subir.</span></div>`:'');
-}
-
-function popHide(){const e=document.getElementById('pop');if(e)e.remove();const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.remove();if(d)d.remove();popOpen=false}
-function popShow(){
-  popHide();if(!D||S.a)return;
-  const inds = Array.isArray(D.indicadores) ? D.indicadores : [];
-  const posts = Array.isArray(D.postulaciones) ? D.postulaciones : [];
-  const perfect=inds.reduce((a,x)=>a+x.puntos,0),aprob=posts.filter(p=>p.estado==='aprobada').length,teaser=!sessionStorage.getItem('pz');
-  const w=document.createElement('div');w.id='pop';
-  w.innerHTML=`${teaser?`<div class="tz" id="tz"><button type="button" class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma ${PTS_INCREIBLE} pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button type="button" onclick="popOpenF()">Ver cómo</button></div>`:''}<button type="button" class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
-  const o=document.createElement('div');o.id='ov';o.className='ov';o.onclick=popClose;
-  const d=document.createElement('aside');d.id='dw';d.className='dw';d.setAttribute('role','dialog');d.setAttribute('aria-label','Cómo sumar puntos');
-  d.innerHTML=`<button type="button" class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
-  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${inds.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
-  <div class="stp"><span class="no2">2</span><div><b>Registra tus interacciones destacadas</b><br><span class="mute">Cuando tengas una atención de la que te sientas orgulloso, postúlala con el número de caso y cuenta qué pasó y por qué fue excepcional.</span></div></div>
-  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +${PTS_INCREIBLE} pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma ${PTS_INCREIBLE} puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
-  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+PTS_INCREIBLE} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
-  <p style="margin:16px 0 0"><button type="button" onclick="popPost()">✨ Postular una atención ahora</button></p>`;
-  document.body.append(w,o,d);
-}
-function popTz(){sessionStorage.setItem('pz','1');const t=document.getElementById('tz');if(t)t.remove()}
-function popOpenF(){popTz();popOpen=true;document.getElementById('ov').classList.add('on');const d=document.getElementById('dw');d.classList.add('on');d.querySelector('.cl').focus()}
-function popClose(){popOpen=false;const o=document.getElementById('ov'),d=document.getElementById('dw');if(o)o.classList.remove('on');if(d)d.classList.remove('on')}
-function popPost(){popClose();userTab='resultados';drawUser();const h=document.getElementById('postular');if(h)h.scrollIntoView({behavior:'smooth'});setTimeout(()=>{const n=document.getElementById('nc');if(n)n.focus()},500)}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popOpen)popClose()});
-
-document.addEventListener('click', e => {
-  const userTabBtn = e.target.closest('button[data-user-tab]');
-  if(userTabBtn && S && !S.a){
-    const target = userTabBtn.getAttribute('data-user-tab');
-    if(target){
-      setUserTab(target);
-      return;
-    }
-  }
-
-  const rkBtn = e.target.closest('button[data-rk]');
-  if(rkBtn && S && !S.a){
-    setVistaRk(rkBtn.getAttribute('data-rk'));
-    return;
-  }
-
-  const negBtn = e.target.closest('button[data-neg]');
-  if(negBtn && S && !S.a){
-    setVistaNeg(negBtn.getAttribute('data-neg'));
-    return;
-  }
-
-  const actBtn = e.target.closest('button[data-user-action]');
-  if(actBtn && S && !S.a){
-    const act = actBtn.getAttribute('data-user-action');
-    if(act === 'post') popPost();
-    else if(act === 'help') popOpenF();
-    return;
-  }
-
-  const adminBtn = e.target.closest('button[data-action="admin-tab"]');
-  if(adminBtn && S && S.a){
-    const target = adminBtn.getAttribute('data-tab');
-    if(target && target !== tab){
-      bellOpen = false;
-      editIndId = null;
-      editIncId = null;
-      editUsrCed = null;
-      tab = target;
-      drawAdmin();
-    }
-  }
-});
-
-async function g(fn,args){
-  try{
-    await rpc(fn,{p_admin:S.clave,...args});
-    await syncState({ silent: false, allowNotif: false });
-  }catch(e){alert(e.message)}
-}
-const del=(t,id)=>confirm('¿Borrar? No se puede deshacer.')&&g('admin_borrar',{p_tabla:t,p_id:String(id)});
-async function evaluar(id,ok,ced='',caso=''){
-  await g('admin_evaluar',{p_id:id,p_ok:ok,p_puntos:PTS_INCREIBLE,p_feedback:$('#f'+id).value,p_compromiso:$('#c'+id).value});
-  broadcastEvent('validacion_resuelta', {
-    cedula: ced, aprobada: ok,
-    mensaje: ok ? `¡Tu caso ${caso} fue aprobado (+${PTS_INCREIBLE} pts)!` : `Recibiste feedback en el caso ${caso}.`
-  });
-}
-async function lote(){
-  const dup=F&&F.fechas.find(x=>x.fecha===$('#fe').value);
-  if(dup&&!confirm(fdl(dup.fecha)+' ya tiene '+dup.registros+' registros cargados. ¿Quieres reemplazarlos con estos?'))return;
-  const datos=$('#lt').value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(a=>a.length>=3)
-    .map(a=>({
-      cedula:a[0], indicador:a[1], cumplido:a[2]==='1',
-      promotores:a[3]!==undefined && a[3]!=='' ? +a[3] : null,
-      detractores:a[4]!==undefined && a[4]!=='' ? +a[4] : null
-    }));
-  try{const n=await rpc('admin_lote',{p_admin:S.clave,p_fecha:$('#fe').value,p_datos:datos});await syncState({silent:false,allowNotif:false});tab='dia';drawAdmin();$('#lm').textContent=n+' registros guardados'}catch(e){alert(e.message)}
-}
-
-Object.assign(window, {
-  out, drawUser, drawAdmin, syncState, playTone, notify,
-  alternarRolCreador,
-  setUserTab, setVistaRk, setVistaNeg,
-  toggleSelectorAlgunosCreador, enviarPropuestaMision, resolverPropuestaMision,
-  aceptarMision, omitirMision, marcarMisionCompletada, copiarImagenLogro,
-  reportarNegativo, postular,
-  editarInd, limpiarInd, guardarInd, toggleTipoMetaForm,
-  editarInc, limpiarInc, guardarInc, solicitarValidacionIncentivo, validarIncentivoLider,
-  guardarPuntosIncreible, editarPersona, cancelarEditarPersona, guardarPersona, cambiarEquipoPersona,
-  toggleBell, irATabValidacion, toggleSelectorAlgunos, crearMision, aprobarMision, aprobarMisionDirecto,
-  agregarOpcionConducta, borrarOpcionConducta, borrarFecha, avisoFecha,
-  popTz, popOpenF, popClose, popPost, g, del, evaluar, lote
-});
-
-S?load():login();
-</script>
-</body>
-</html>
+  const bandejaPropuestas = propuestasPend.
