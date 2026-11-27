@@ -1269,6 +1269,74 @@ function rtBadgeHtml(){
 }
 
 function ini(n){return String(n||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+
+function getMisionesUsuarioPorNombre(nombre, cedula=''){
+  const nNorm = norm(nombre);
+  const cedStr = String(cedula || '').trim();
+  const ganadas = [];
+  (MISIONES || []).forEach(m => {
+    const compList = Array.isArray(m.completados) ? m.completados : [];
+    const enCompletados = compList.some(c => norm(c) === nNorm);
+    const locAprobada = cedStr && MISIONES_LOCAL[cedStr] && MISIONES_LOCAL[cedStr][String(m.id)] === 'aprobada';
+    if(enCompletados || locAprobada){
+      ganadas.push({
+        id: m.id,
+        titulo: m.titulo,
+        puntos: Number(m.puntos) || 0,
+        icono: m.insignia_icono || '🏅'
+      });
+    }
+  });
+  return {
+    cantidad: ganadas.length,
+    puntos: ganadas.reduce((a, b) => a + b.puntos, 0),
+    lista: ganadas
+  };
+}
+
+function calcularPuntajeTotalIntegrado(entry, ptsPostExtra=0){
+  const basePts = Number(entry?.puntos) || 0;
+  const misInfo = getMisionesUsuarioPorNombre(entry?.nombre, entry?.cedula);
+  const ptsMisBackend = entry?.pts_misiones != null ? Number(entry.pts_misiones) : 0;
+  const ptsMis = Math.max(ptsMisBackend, misInfo.puntos);
+
+  const ptsPostBackend = entry?.pts_post != null ? Number(entry.pts_post) : 0;
+  const ptsPost = Math.max(ptsPostBackend, Number(ptsPostExtra) || 0);
+
+  if(Array.isArray(entry?.por_indicador)){
+    const ptsInd = entry.por_indicador.reduce((acc, x) => acc + ((Number(x.dias_ok) || 0) * (Number(x.puntos) || 0)), 0);
+    return Math.max(basePts, ptsInd + ptsMis + ptsPost);
+  }
+
+  if(entry?.yo && H && Array.isArray(H.dias)){
+    const dg = getDesglosePuntosUsuario(basePts);
+    return Math.max(basePts, dg.totalReal, dg.ptsIndicadores + Math.max(dg.ptsMisiones, ptsMis) + Math.max(dg.ptsAtenciones, ptsPost));
+  }
+
+  return Math.max(basePts, basePts + ptsMis + ptsPostExtra);
+}
+
+function getRankingConsolidado(rawRanking){
+  const postExtraYo = (!S?.a && D && Array.isArray(D.postulaciones))
+    ? D.postulaciones.filter(p => p.estado === 'aprobada').reduce((acc, p) => acc + (Number(p.puntos) || PTS_INCREIBLE), 0)
+    : 0;
+
+  return (rawRanking || [])
+    .map(item => {
+      const detalleMatch = (G && Array.isArray(G.personas))
+        ? G.personas.find(p => (item.cedula && p.cedula && String(p.cedula) === String(item.cedula)) || norm(p.nombre) === norm(item.nombre))
+        : null;
+      const sourceObj = detalleMatch ? { ...item, ...detalleMatch, yo: item.yo } : item;
+      const extraPost = item.yo ? postExtraYo : 0;
+      const totalPts = calcularPuntajeTotalIntegrado(sourceObj, extraPost);
+      return {
+        ...item,
+        puntos: totalPts
+      };
+    })
+    .sort((a, b) => (Number(b.puntos) || 0) - (Number(a.puntos) || 0) || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+}
+
 function rankList(rk, showTeamBadge=false){
   const list = rk || [];
   const mx=list[0]?list[0].puntos:0,med=['🥇','🥈','🥉'];
@@ -1347,30 +1415,6 @@ function getDesglosePuntosUsuario(ptsRankingTotal=0){
     detalleIndicadores,
     detalleMisiones,
     atencionesAprobadas
-  };
-}
-
-function getMisionesUsuarioPorNombre(nombre, cedula=''){
-  const nNorm = norm(nombre);
-  const cedStr = String(cedula || '').trim();
-  const ganadas = [];
-  (MISIONES || []).forEach(m => {
-    const compList = Array.isArray(m.completados) ? m.completados : [];
-    const enCompletados = compList.some(c => norm(c) === nNorm);
-    const locAprobada = cedStr && MISIONES_LOCAL[cedStr] && MISIONES_LOCAL[cedStr][String(m.id)] === 'aprobada';
-    if(enCompletados || locAprobada){
-      ganadas.push({
-        id: m.id,
-        titulo: m.titulo,
-        puntos: Number(m.puntos) || 0,
-        icono: m.insignia_icono || '🏅'
-      });
-    }
-  });
-  return {
-    cantidad: ganadas.length,
-    puntos: ganadas.reduce((a, b) => a + b.puntos, 0),
-    lista: ganadas
   };
 }
 
@@ -1621,14 +1665,14 @@ function drawUser(){
   const postulacionesList = (D && Array.isArray(D.postulaciones)) ? D.postulaciones : [];
 
   const miEq = getEquipo(nombreUsr, S.ced);
-  const rkGlobal = (D && Array.isArray(D.ranking)) ? D.ranking : [];
+  const rkGlobal = getRankingConsolidado((D && Array.isArray(D.ranking)) ? D.ranking : []);
   const rkEquipo = miEq==='general' ? rkGlobal : rkGlobal.filter(x => getEquipo(x.nombre, x.cedula) === miEq);
   const rkActivo = vistaRk === 'global' ? rkGlobal : (rkEquipo.length ? rkEquipo : rkGlobal);
 
   const iAct = rkActivo.findIndex(x=>x.yo);
   const iGlob = rkGlobal.findIndex(x=>x.yo);
   const me = rkGlobal[iGlob];
-  const pts = me ? me.puntos : 0;
+  const pts = me ? me.puntos : getDesglosePuntosUsuario(0).totalReal;
   const em = iAct===0?'🏆':iAct===1?'🥈':iAct===2?'🥉':'💪';
   const nomEquipo = miEq==='tradicional' ? 'Equipo Tradicional' : miEq==='social' ? 'Equipo Social' : 'Tu Equipo';
   const cantDias = (H && H.dias && H.dias.length) ? H.dias.length : 0;
@@ -1702,7 +1746,7 @@ function drawUser(){
           <button type="button" data-rk="global" class="${vistaRk==='global'?'on':''}">Global</button>
         </div>
       </div>
-      <p class="mute" style="margin:0 0 10px">${vistaRk==='global'?'Comparativa con toda la operación (Tradicional + Social).':'Posiciones exclusivas de tu equipo.'}</p>
+      <p class="mute" style="margin:0 0 10px">Puntaje total = Indicadores + Misiones + Atenciones increíbles (${vistaRk==='global'?'Toda la operación':'Tu equipo'}).</p>
       ${podio(rkActivo)}${rankList(rkActivo, vistaRk==='global')}
     </aside>
     <section>
@@ -1755,7 +1799,7 @@ function drawUser(){
     <div>
       <span>Tu puesto (${vistaRk==='global'?'Global Operación':esc(nomEquipo)})</span><br>
       <b>${iAct>=0 ? iAct+1 : '-'}</b><span style="font-size:1.4rem"> de ${rkActivo.length}</span><br>
-      <span>${pts} puntos sumados · Puesto global: <b>#${iGlob>=0 ? iGlob+1 : '-'}</b> de ${rkGlobal.length}</span>
+      <span>${pts} puntos totales (Indicadores + Misiones + Atenciones) · Puesto global: <b>#${iGlob>=0 ? iGlob+1 : '-'}</b> de ${rkGlobal.length}</span>
     </div>
     <span class="em">${em}</span>
   </div>
@@ -1997,7 +2041,7 @@ async function copiarImagenLogro(tituloMision, puntos, iconoInsignia='🏅', nom
 }
 
 function construirTableroGeneralConducta(filtroEq='global'){
-  const personas = (D && D.ranking) ? D.ranking : [];
+  const personas = getRankingConsolidado((D && D.ranking) ? D.ranking : []);
   const filtradas = filtroEq==='global'
     ? personas
     : personas.filter(p => getEquipo(p.nombre, p.cedula) === filtroEq);
@@ -2095,8 +2139,8 @@ function compet(rk,i,pts){
   const mejor=d.reduce((a,x)=>Math.max(a,x.puntos),0);
   let g='';
   if(i>=0&&rk.length>1){
-    if(i===0){const dif=pts-rk[1].puntos;g=`<span class="ic">🏆</span><span><b>¡Vas de primero en esta tabla!</b><br><span class="mute">${dif>0?`Tienes ${dif} pts de ventaja. Cada día cumplido la cuida.`:'Estás empatado en la cima. Un día más cumplido te separa.'}</span></span>`}
-    else{const dif=rk[i-1].puntos-pts;g=`<span class="ic">🎯</span><span><b>${dif>0?`A ${dif} pts de subir al puesto ${i}`:`Empatado con el puesto ${i}`}</b><br><span class="mute">${rk[i+1]?`Tu ventaja sobre el puesto ${i+2}: ${pts-rk[i+1].puntos} pts.`:'Cumplir tus indicadores de hoy te acerca.'}</span></span>`}
+    if(i===0){const dif=pts-rk[1].puntos;g=`<span class="ic">🏆</span><span><b>¡Vas de primero en esta tabla!</b><br><span class="mute">${dif>0?`Tienes ${dif} pts totales de ventaja. Cada día, misión o atención increíble suma.`:'Estás empatado en la cima por puntaje total.'}</span></span>`}
+    else{const dif=rk[i-1].puntos-pts;g=`<span class="ic">🎯</span><span><b>${dif>0?`A ${dif} pts totales de subir al puesto ${i}`:`Empatado en puntaje total con el puesto ${i}`}</b><br><span class="mute">${rk[i+1]?`Tu ventaja sobre el puesto ${i+2}: ${pts-rk[i+1].puntos} pts totales.`:'Cumplir tus indicadores, misiones y atenciones increíbles te acerca.'}</span></span>`}
   }
   return (g?`<div class="card gap">${g}</div>`:'')+`<div class="stats"><div><b>${d.filter(perf).length}</b><span>Días perfectos</span></div><div><b>${racha}</b><span>Racha de días perfectos</span></div><div><b>${tot?Math.round(ok/tot*100):0}%</b><span>Indicadores cumplidos</span></div><div><b>${mejor}</b><span>Mejor día (pts)</span></div></div>`;
 }
@@ -2541,7 +2585,7 @@ function campanaAdminHtml(){
 
 const T={pos:'Dashboard / Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
-  const rkAll = (D && D.ranking) ? D.ranking : [];
+  const rkAll = getRankingConsolidado((D && D.ranking) ? D.ranking : []);
   const rkFiltrado = adminFiltroEq==='global'
     ? rkAll
     : rkAll.filter(x => getEquipo(x.nombre, x.cedula) === adminFiltroEq);
@@ -2653,7 +2697,7 @@ function drawAdmin(){
   }).join('')}</div>
   ${v}
   <div class="row" style="margin:28px 0 10px">
-    <h2 style="margin:0">Ranking actual</h2>
+    <h2 style="margin:0">Ranking actual (Indicadores + Misiones + Atenciones increíbles)</h2>
     <div class="seg-switch" style="margin:0">
       <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
       <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
@@ -3010,26 +3054,41 @@ const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e
 const corto=n=>String(n||'').split(' ').slice(0,2).join(' ');
 function posView(){
   if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
-  const P_ALL=G.personas;
+  const ind=G.indicadores,nf=G.fechas.length;
+  const ord=ind.map((x,k)=>k).sort((a,b)=>{const pa=PRI.indexOf(ind[a].nombre.toLowerCase()),pb=PRI.indexOf(ind[b].nombre.toLowerCase());return (pa<0?99:pa)-(pb<0?99:pb)||a-b});
+  const col=k=>PAL[ord.indexOf(k)%PAL.length],ip=(p,k)=>p.por_indicador[k].dias_ok*p.por_indicador[k].puntos;
+
+  const P_ALL = G.personas
+    .map(per => {
+      const pInd = ord.reduce((acc, k) => acc + ip(per, k), 0);
+      const misInfo = getMisionesUsuarioPorNombre(per.nombre, per.cedula);
+      const pMis = Math.max(per.pts_misiones != null ? Number(per.pts_misiones) : 0, misInfo.puntos);
+      const pInc = Number(per.pts_post) || 0;
+      const totalIntegrado = calcularPuntajeTotalIntegrado({ ...per, pts_misiones: pMis, pts_post: pInc });
+      return {
+        ...per,
+        _pInd: pInd,
+        _pMis: pMis,
+        _cantMis: Math.max(per.misiones_ok != null ? Number(per.misiones_ok) : 0, misInfo.cantidad),
+        _pInc: pInc,
+        puntos: totalIntegrado
+      };
+    })
+    .sort((a, b) => (Number(b.puntos) || 0) - (Number(a.puntos) || 0) || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+
   const P = adminFiltroEq==='global' ? P_ALL : P_ALL.filter(p => getEquipo(p.nombre, p.cedula) === adminFiltroEq);
   if(!P.length) return '<p class="mute">No hay integrantes en este equipo.</p>';
 
-  const ind=G.indicadores,nf=G.fechas.length,mx=Math.max(1,...P.map(p=>p.puntos));
-  const ord=ind.map((x,k)=>k).sort((a,b)=>{const pa=PRI.indexOf(ind[a].nombre.toLowerCase()),pb=PRI.indexOf(ind[b].nombre.toLowerCase());return (pa<0?99:pa)-(pb<0?99:pb)||a-b});
-  const col=k=>PAL[ord.indexOf(k)%PAL.length],ip=(p,k)=>p.por_indicador[k].dias_ok*p.por_indicador[k].puntos;
+  const mx=Math.max(1,...P.map(p=>p.puntos));
   if(!selP||!P.find(p=>p.cedula===selP))selP=P[0].cedula;
   const perfect=ind.reduce((a,x)=>a+x.puntos,0);
 
   let totIndEquipo=0, totMisEquipo=0, totIncEquipo=0, totPtsEquipo=0;
   P.forEach(per => {
-    const pInd = ord.reduce((acc, k) => acc + ip(per, k), 0);
-    const misInfo = getMisionesUsuarioPorNombre(per.nombre, per.cedula);
-    const pMis = per.pts_misiones != null ? Number(per.pts_misiones) : misInfo.puntos;
-    const pInc = Number(per.pts_post) || 0;
-    totIndEquipo += pInd;
-    totMisEquipo += pMis;
-    totIncEquipo += pInc;
-    totPtsEquipo += Number(per.puntos) || (pInd + pMis + pInc);
+    totIndEquipo += per._pInd;
+    totMisEquipo += per._pMis;
+    totIncEquipo += per._pInc;
+    totPtsEquipo += per.puntos;
   });
 
   const filtroBar = `<div class="row" style="margin-bottom:12px">
@@ -3063,52 +3122,43 @@ function posView(){
     </div>
   </div>`;
 
-  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Misiones y Atenciones</b><span class="mute">Las misiones validadas suman los puntos configurados en cada reto; las atenciones increíbles aprobadas suman ${PTS_INCREIBLE} pts.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
+  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Misiones y Atenciones</b><span class="mute">Las misiones validadas suman los puntos configurados en cada reto; las atenciones increíbles aprobadas suman ${PTS_INCREIBLE} pts.</span></div><div><b>3 · Orden del ranking total</b><span class="mute">Suma Indicadores + Misiones + Atenciones increíbles de mayor a menor en ${esc(G.mes)}. Días con datos: ${nf}.</span></div></div>`;
   const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${MIS_COL}"></i>Misiones</span><span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
   const bars=P.map((p,j)=>{
-    const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-    const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
-    return `<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${pMis?`<i style="width:${pMis/mx*100}%;background:${MIS_COL}" title="Misiones: ${pMis} pts"></i>`:''}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`;
+    const pMis = p._pMis;
+    return `<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${pMis?`<i style="width:${pMis/mx*100}%;background:${MIS_COL}" title="Misiones: ${pMis} pts"></i>`:''}${p._pInc?`<i style="width:${p._pInc/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p._pInc} pts"></i>`:''}</div><b>${p.puntos}</b></div>`;
   }).join('');
   const motivo=j=>{const p=P[j];
     const fz=ord.filter(k=>p.por_indicador[k].dias_total>0).map(k=>({n:ind[k].nombre,r:p.por_indicador[k].dias_ok/p.por_indicador[k].dias_total,o:p.por_indicador[k].dias_ok,t:p.por_indicador[k].dias_total}));
     let a='';if(fz.length){const mj=fz.reduce((x,y)=>y.r>x.r?y:x),pe=fz.reduce((x,y)=>y.r<x.r?y:x);a=` Más fuerte: ${esc(mj.n)} (${mj.o}/${mj.t} días). ${pe.r<1&&pe!==mj?`A reforzar: ${esc(pe.n)} (${pe.o}/${pe.t}).`:''}`}
-    if(j===0)return `Lidera${P[1]?` con ${p.puntos-P[1].puntos} pts sobre ${esc(corto(P[1].nombre))}`:''}.${a}`;
+    if(j===0)return `Lidera en puntaje total${P[1]?` con ${p.puntos-P[1].puntos} pts sobre ${esc(corto(P[1].nombre))}`:''}.${a}`;
     const u=P[j-1],dif=u.puntos-p.puntos;
-    if(!dif)return `Empatado en ${p.puntos} pts con ${esc(corto(u.nombre))}; el desempate es por nombre.${a}`;
-    const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
-    return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
+    if(!dif)return `Empatado en ${p.puntos} pts totales con ${esc(corto(u.nombre))}; el desempate es por nombre.${a}`;
+    const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Misiones',d:u._pMis-p._pMis},{n:'Atenciones increíbles',d:u._pInc-p._pInc}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
+    return `A ${dif} pts totales del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
   const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Total</th><th>Pts Indicadores</th><th>Pts Misiones</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
    +P.map((p,j)=>{
-     const pIndTot = ord.reduce((acc, k) => acc + ip(p, k), 0);
-     const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-     const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
-     const cantMis = p.misiones_ok != null ? Number(p.misiones_ok) : misInfo.cantidad;
-     return `<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td><td><b style="color:var(--teal)">${pIndTot} pts</b></td><td><b style="color:var(--purple)">${pMis} pts</b><br><span class="mute">${cantMis} ${cantMis===1?'misión':'misiones'}</span></td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes})</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${5+ord.length}">${motivo(j)}</td></tr>`;
+     return `<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td><td><b style="color:var(--teal)">${p._pInd} pts</b></td><td><b style="color:var(--purple)">${p._pMis} pts</b><br><span class="mute">${p._cantMis} ${p._cantMis===1?'misión':'misiones'}</span></td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes})</span>`:''}<br><span class="mute">${p._pInc} pts</span></td></tr><tr class="mv"><td></td><td colspan="${5+ord.length}">${motivo(j)}</td></tr>`;
    }).join('')+'</table></div>';
   const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
    +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
   const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
-  const pIndInd = ord.reduce((acc, k) => acc + ip(p, k), 0);
-  const misInfoInd = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
-  const pMisInd = p.pts_misiones != null ? Number(p.pts_misiones) : misInfoInd.puntos;
-  const cantMisInd = p.misiones_ok != null ? Number(p.misiones_ok) : misInfoInd.cantidad;
 
-  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post-pMisInd);
+  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p._pInc-p._pMis);
   const sv=G.fechas.map((f,i)=>{const d=dm[f],x=30+i*stp,h=d?d.pts/Math.max(1,perfect)*(Hh-40):0;return `<rect x="${x}" y="${Hh-20-h}" width="${bw}" height="${Math.max(h,d?2:0)}" rx="2" fill="${d&&d.ok===d.total?GOLD:'#0e8f83'}"><title>${f}: ${d?d.pts+' pts · '+d.ok+' de '+d.total:'sin registros'}</title></rect><text x="${x+bw/2}" y="${Hh-6}" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6">${f.slice(8)}</text>`}).join('');
   const pts=G.fechas.map((f,i)=>{acc+=dm[f]?dm[f].pts:0;return `${(30+i*stp+bw/2).toFixed(1)},${(Hh-20-acc/tot*(Hh-40)).toFixed(1)}`}).join(' ');
   const dd=p.dias,perf=dd.filter(d=>d.ok===d.total).length,mejor=dd.reduce((a,d)=>Math.max(a,d.pts),0),okT=dd.reduce((a,d)=>a+d.ok,0),tT=dd.reduce((a,d)=>a+d.total,0);
   const det=`<div class="row row2" style="max-width:420px"><label for="sel-persona-det">Persona</label><select id="sel-persona-det" onchange="selP=this.value;drawAdmin()">${P.map((x,j)=>`<option value="${x.cedula}" ${x.cedula===selP?'selected':''}>${j+1}. ${esc(x.nombre)}</option>`).join('')}</select></div>
-   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos} pts</b>Total · Ind: ${pIndInd} · Mis: ${pMisInd}</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
+   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos} pts</b>Total · Ind: ${p._pInd} · Mis: ${p._pMis}</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
    <p class="mute" style="margin:0 0 4px"><b style="color:var(--ink)">Cómo llegó a ${p.puntos} puntos</b></p>
    ${ord.map(k=>{const x=p.por_indicador[k],r=x.dias_total?x.dias_ok/x.dias_total*100:0;return `<div class="cmpb"><span>${esc(x.nombre)}</span><span class="tr"><i style="width:${r}%;background:${col(k)}"></i></span><span>${x.dias_ok} de ${x.dias_total} días × ${x.puntos} = <b>${ip(p,k)}</b></span></div>`}).join('')}
-   <div class="cmpb"><span>🚀 Misiones</span><span class="tr"><i style="width:${pMisInd?100:0}%;background:${MIS_COL}"></i></span><span>${cantMisInd} ${cantMisInd===1?'misión validada':'misiones validadas'} = <b>${pMisInd} pts</b></span></div>
-   <div class="cmpb"><span>🌟 Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
+   <div class="cmpb"><span>🚀 Misiones</span><span class="tr"><i style="width:${p._pMis?100:0}%;background:${MIS_COL}"></i></span><span>${p._cantMis} ${p._cantMis===1?'misión validada':'misiones validadas'} = <b>${p._pMis} pts</b></span></div>
+   <div class="cmpb"><span>🌟 Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p._pInc}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
    <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
    <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
   return `${filtroBar}${ex}
-  <div class="card"><b>Cómo se compone el puntaje de cada persona</b>${leg}${bars}</div>
-  <div class="card"><b>Detalle por persona (Indicadores vs. Misiones)</b><p class="mute" style="margin:2px 0 8px">Comparativo directo de puntos por indicadores, puntos por misiones y atenciones increíbles.</p>${tabla}</div>
+  <div class="card"><b>Cómo se compone el puntaje total de cada persona</b>${leg}${bars}</div>
+  <div class="card"><b>Detalle por persona (Indicadores + Misiones + Atenciones)</b><p class="mute" style="margin:2px 0 8px">Comparativo directo del puntaje total y cada fuente de puntos.</p>${tabla}</div>
   <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
   <div class="card"><b>Análisis individual</b>${det}</div>`;
 }
@@ -3117,7 +3167,7 @@ const perfectDay=()=>((D && D.indicadores) || []).reduce((a,x)=>a+x.puntos,0);
 function ritmo(){const d=(H&&H.dias)||[];return d.length?d.reduce((a,x)=>a+x.puntos,0)/d.length:0}
 function mision(){
   const pd=perfectDay(),n=((D && D.indicadores) || []).length;
-  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble.</p>
+  return `<div class="card mis"><h3>🎯 Tu misión de hoy</h3><p>Hoy puedes sumar hasta <b>${pd+PTS_INCREIBLE} pts</b>: <b>${pd}</b> cumpliendo tus ${n} indicadores y <b>${PTS_INCREIBLE} más</b> si una atención tuya es aprobada como increíble (además de los puntos de tus misiones validadas).</p>
   <div class="chips">${((D && D.indicadores) || []).map(i=>`<span class="chip">${esc(i.nombre)} +${i.puntos}</span>`).join('')}<span class="chip g">Atención increíble +${PTS_INCREIBLE}</span></div>
   <div class="btns"><button type="button" data-user-action="post">✨ Postular una atención</button><button type="button" class="sec" data-user-action="help">💡 ¿Cómo funciona?</button></div></div>`;
 }
@@ -3170,7 +3220,7 @@ function incCards(pts){
     <div class="pr"><span class="gift">${ok?'🏆':'🎁'}</span><div><b>${esc(n.premio)}</b><span>${esc(n.nombre)} · meta ${n.meta} pts</span></div></div>
     <div class="nums"><div>${ok?'<span class="big">¡Meta alcanzada!</span>':`<span class="big">${falta}</span> <span class="mute">pts para alcanzarlo</span>`}</div><b>${pct}%</b></div>
     <div class="track ${ok?'ok':''}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>
-    <span class="mute">Llevas ${pts} de ${n.meta} puntos${ok?'. ¡Felicitaciones!':''}</span>${how}</div>`;
+    <span class="mute">Llevas ${pts} de ${n.meta} puntos totales${ok?'. ¡Felicitaciones!':''}</span>${how}</div>`;
   }).join('');
 }
 function misInd(){
@@ -3192,11 +3242,11 @@ function popShow(){
   w.innerHTML=`${teaser?`<div class="tz" id="tz"><button type="button" class="x" aria-label="Cerrar aviso" onclick="popTz()">×</button><b>🏅 ¡Suma ${PTS_INCREIBLE} pts extra!</b><br>Registra una atención increíble y, si la aprueban, sube en el ranking.<br><button type="button" onclick="popOpenF()">Ver cómo</button></div>`:''}<button type="button" class="tab" onclick="popOpenF()" aria-label="Abrir: cómo sumo puntos">💡 ¿Cómo sumo puntos?</button>`;
   const o=document.createElement('div');o.id='ov';o.className='ov';o.onclick=popClose;
   const d=document.createElement('aside');d.id='dw';d.className='dw';d.setAttribute('role','dialog');d.setAttribute('aria-label','Cómo sumar puntos');
-  d.innerHTML=`<button type="button" class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Cada día es una nueva oportunidad de subir en el ranking.</p>
-  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores</b><ul>${inds.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}</ul></div></div>
+  d.innerHTML=`<button type="button" class="cl" aria-label="Cerrar" onclick="popClose()">×</button><h2>¡Tú decides cuánto sumas! 🚀</h2><p class="mute" style="margin:0">Tu puntaje total suma indicadores, misiones validadas y atenciones increíbles aprobadas.</p>
+  <div class="stp"><span class="no2">1</span><div><b>Cumple tus indicadores y misiones</b><ul>${inds.map(i=>`<li>${esc(i.nombre)}: <b>+${i.puntos} pts</b> por día cumplido</li>`).join('')}<li>Misiones validadas: <b>+pts del reto</b> e insignia</li></ul></div></div>
   <div class="stp"><span class="no2">2</span><div><b>Registra tus interacciones destacadas</b><br><span class="mute">Cuando tengas una atención de la que te sientas orgulloso, postúlala con el número de caso y cuenta qué pasó y por qué fue excepcional.</span></div></div>
-  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +${PTS_INCREIBLE} pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma ${PTS_INCREIBLE} puntos directos a tu ranking del mes. Si no se aprueba, recibes feedback y un compromiso de mejora: aprendes y puedes volver a postular.</span></div></div>
-  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+PTS_INCREIBLE} pts</b> en tu ranking.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
+  <div class="stp g"><span class="no2">3</span><div><b>Si la aprueban como gran gestión: +${PTS_INCREIBLE} pts 🏅</b><br><span class="mute">Una atención increíble aprobada suma ${PTS_INCREIBLE} puntos directos a tu ranking total del mes. Si no se aprueba, recibes feedback y un compromiso de mejora.</span></div></div>
+  <div class="ex"><b>Un ejemplo:</b> un día perfecto suma ${perfect} pts. Si además una atención tuya es aprobada, ese día pesa <b>${perfect+PTS_INCREIBLE} pts</b> en tu ranking total.${aprob?`<br>Ya tienes <b>${aprob}</b> ${aprob>1?'atenciones aprobadas':'atención aprobada'}, ¡sigue así!`:''}</div>
   <p style="margin:16px 0 0"><button type="button" onclick="popPost()">✨ Postular una atención ahora</button></p>`;
   document.body.append(w,o,d);
 }
