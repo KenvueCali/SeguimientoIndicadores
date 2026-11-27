@@ -87,6 +87,25 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .stats b{display:block;font-size:1.6rem;font-weight:800;line-height:1.1}
 .stats span{font-size:.8rem;color:var(--mute)}
 @media(max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* Dashboard KPI & Breakdown */
+.dash-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(15,42,67,.04)}
+.kpi-card.k-ind{border-top:4px solid var(--teal)}
+.kpi-card.k-mis{border-top:4px solid var(--purple)}
+.kpi-card.k-inc{border-top:4px solid var(--gold)}
+.kpi-card.k-tot{border-top:4px solid var(--ink);background:linear-gradient(145deg,rgba(14,143,131,.07),var(--card))}
+.kpi-card .k-lbl{font-size:.82rem;color:var(--mute);font-weight:600}
+.kpi-card .k-val{font-size:2rem;font-weight:800;line-height:1.1;margin:4px 0}
+.kpi-card .k-sub{font-size:.8rem;color:var(--mute)}
+@media(max-width:700px){.dash-kpis{grid-template-columns:repeat(2,1fr)}}
+.split-bar{display:flex;height:24px;background:var(--line);border-radius:12px;overflow:hidden;margin:10px 0 8px}
+.split-bar i{display:block;height:100%;transition:width .6s ease}
+.dash-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:760px){.dash-cols{grid-template-columns:1fr}}
+.dash-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.dash-row:last-child{border-bottom:0;padding-bottom:0}
+
 .podio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;margin-bottom:10px;min-height:190px}
 .podio .c{text-align:center}
 .podio .nm{font-size:.9rem;font-weight:600;margin-bottom:4px;overflow-wrap:anywhere}
@@ -176,7 +195,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 @media(prefers-reduced-motion:reduce){.dw{transition:none}}
 .dw h2{margin:0 0 6px;font-size:1.3rem}
 .dw .stp{display:grid;grid-template-columns:38px 1fr;gap:10px;margin:14px 0}
-.dw .stp .no2{width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800}
+.dw .stp .no2{width:38px:height:38px;border-radius:50%;background:var(--teal);color:#fff;display:grid;place-items:center;font-weight:800}
 .dw .stp.g .no2{background:var(--gold);color:#222}
 .dw ul{margin:6px 0 0;padding-left:18px}
 .dw .ex{background:var(--bg);border-radius:10px;padding:12px;font-size:.92rem}
@@ -1009,6 +1028,190 @@ function getInsigniasGanadasUsuario(){
     });
 }
 
+function getDesglosePuntosUsuario(ptsRankingTotal=0){
+  const inds = (D && Array.isArray(D.indicadores)) ? D.indicadores : [];
+  const d = (H && Array.isArray(H.dias)) ? H.dias : [];
+  const st = {};
+  d.forEach(x => (x.indicadores || []).forEach(i => {
+    const q = st[i.nombre] = st[i.nombre] || { ok: 0, t: 0 };
+    q.t++;
+    if(i.cumplido) q.ok++;
+  }));
+
+  const detalleIndicadores = inds.map(i => {
+    const diasCumplidos = Number(i.dias) || (st[i.nombre] ? st[i.nombre].ok : 0);
+    const diasTotales = st[i.nombre] ? st[i.nombre].t : diasCumplidos;
+    const ptsGanados = diasCumplidos * (Number(i.puntos) || 0);
+    return {
+      nombre: i.nombre,
+      valorDia: Number(i.puntos) || 0,
+      diasCumplidos,
+      diasTotales,
+      puntos: ptsGanados
+    };
+  });
+  const ptsIndicadores = detalleIndicadores.reduce((acc, x) => acc + x.puntos, 0);
+
+  const misionesAprobadas = getInsigniasGanadasUsuario();
+  const detalleMisiones = misionesAprobadas.map(m => ({
+    titulo: m.titulo,
+    icono: m.insignia_icono || '🏅',
+    insignia: m.insignia_nombre || '',
+    puntos: Number(m.puntos) || 0
+  }));
+  const ptsMisiones = detalleMisiones.reduce((acc, x) => acc + x.puntos, 0);
+
+  const atencionesAprobadas = ((D && Array.isArray(D.postulaciones)) ? D.postulaciones : []).filter(p => p.estado === 'aprobada');
+  const ptsAtenciones = atencionesAprobadas.reduce((acc, p) => acc + (Number(p.puntos) || PTS_INCREIBLE), 0);
+
+  const sumaCalculada = ptsIndicadores + ptsMisiones + ptsAtenciones;
+  const totalReal = Math.max(Number(ptsRankingTotal) || 0, sumaCalculada);
+
+  return {
+    ptsIndicadores,
+    ptsMisiones,
+    ptsAtenciones,
+    totalReal,
+    detalleIndicadores,
+    detalleMisiones,
+    atencionesAprobadas
+  };
+}
+
+function getMisionesUsuarioPorNombre(nombre, cedula=''){
+  const nNorm = norm(nombre);
+  const cedStr = String(cedula || '').trim();
+  const ganadas = [];
+  (MISIONES || []).forEach(m => {
+    const compList = Array.isArray(m.completados) ? m.completados : [];
+    const enCompletados = compList.some(c => norm(c) === nNorm);
+    const locAprobada = cedStr && MISIONES_LOCAL[cedStr] && MISIONES_LOCAL[cedStr][String(m.id)] === 'aprobada';
+    if(enCompletados || locAprobada){
+      ganadas.push({
+        id: m.id,
+        titulo: m.titulo,
+        puntos: Number(m.puntos) || 0,
+        icono: m.insignia_icono || '🏅'
+      });
+    }
+  });
+  return {
+    cantidad: ganadas.length,
+    puntos: ganadas.reduce((a, b) => a + b.puntos, 0),
+    lista: ganadas
+  };
+}
+
+function dashboardUsuarioView(pts){
+  const dg = getDesglosePuntosUsuario(pts);
+  const basePct = Math.max(1, dg.totalReal);
+  const pctInd = Math.round((dg.ptsIndicadores / basePct) * 100);
+  const pctMis = Math.round((dg.ptsMisiones / basePct) * 100);
+  const pctInc = Math.max(0, 100 - pctInd - pctMis);
+
+  return `
+  <div class="card">
+    <div class="row">
+      <div>
+        <h2 style="margin:0">📈 Dashboard de Origen de Puntos</h2>
+        <p class="mute" style="margin:4px 0 0">Visualiza exactamente cuántos puntos has ganado por <b>indicadores</b>, cuántos por <b>misiones</b> y cuántos por <b>atenciones increíbles</b>.</p>
+      </div>
+      <button type="button" class="sec" data-user-tab="resultados">← Volver al resumen</button>
+    </div>
+  </div>
+
+  <div class="dash-kpis">
+    <div class="kpi-card k-ind">
+      <div class="k-lbl">📊 Por Indicadores</div>
+      <div class="k-val" style="color:var(--teal)">${dg.ptsIndicadores} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${dg.totalReal ? pctInd : 0}% del total · ${dg.detalleIndicadores.length} indicadores</div>
+    </div>
+    <div class="kpi-card k-mis">
+      <div class="k-lbl">🚀 Por Misiones</div>
+      <div class="k-val" style="color:var(--purple)">${dg.ptsMisiones} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${dg.totalReal ? pctMis : 0}% del total · ${dg.detalleMisiones.length} completadas</div>
+    </div>
+    <div class="kpi-card k-inc">
+      <div class="k-lbl">🌟 Atenciones Increíbles</div>
+      <div class="k-val" style="color:#c98a0b">${dg.ptsAtenciones} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${dg.totalReal ? pctInc : 0}% del total · ${dg.atencionesAprobadas.length} aprobadas</div>
+    </div>
+    <div class="kpi-card k-tot">
+      <div class="k-lbl">🏆 Total Acumulado</div>
+      <div class="k-val">${dg.totalReal} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">Consolidado de ${esc((D && D.mes) || 'este mes')}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>Distribución proporcional de tu puntaje</b>
+    <div class="split-bar" role="img" aria-label="Indicadores ${dg.ptsIndicadores} puntos, Misiones ${dg.ptsMisiones} puntos, Atenciones ${dg.ptsAtenciones} puntos">
+      <i style="width:${dg.totalReal ? (dg.ptsIndicadores / basePct * 100) : 0}%;background:var(--teal)" title="Indicadores: ${dg.ptsIndicadores} pts"></i>
+      <i style="width:${dg.totalReal ? (dg.ptsMisiones / basePct * 100) : 0}%;background:var(--purple)" title="Misiones: ${dg.ptsMisiones} pts"></i>
+      <i style="width:${dg.totalReal ? (dg.ptsAtenciones / basePct * 100) : 0}%;background:var(--gold)" title="Atenciones increíbles: ${dg.ptsAtenciones} pts"></i>
+    </div>
+    <div class="leg" style="margin-bottom:0">
+      <span><i style="background:var(--teal)"></i>Indicadores: <b>${dg.ptsIndicadores} pts</b> (${dg.totalReal ? pctInd : 0}%)</span>
+      <span><i style="background:var(--purple)"></i>Misiones: <b>${dg.ptsMisiones} pts</b> (${dg.totalReal ? pctMis : 0}%)</span>
+      <span><i style="background:var(--gold)"></i>Atenciones increíbles: <b>${dg.ptsAtenciones} pts</b> (${dg.totalReal ? pctInc : 0}%)</span>
+    </div>
+  </div>
+
+  <div class="dash-cols">
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <h3 style="margin:0">📊 Desglose por Indicador</h3>
+        <span class="tag aceptada">${dg.ptsIndicadores} pts</span>
+      </div>
+      ${dg.detalleIndicadores.length
+        ? dg.detalleIndicadores.map(x => `
+            <div class="dash-row">
+              <div>
+                <b>${esc(x.nombre)}</b>
+                <div class="mute" style="font-size:.82rem">${x.diasCumplidos} ${x.diasCumplidos===1?'día cumplido':'días cumplidos'} × ${x.valorDia} pts</div>
+              </div>
+              <b style="color:var(--teal);white-space:nowrap">+${x.puntos} pts</b>
+            </div>
+          `).join('')
+        : '<p class="mute" style="margin:0">No hay indicadores registrados aún.</p>'
+      }
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <h3 style="margin:0">🚀 Desglose por Misiones (${dg.detalleMisiones.length})</h3>
+        <span class="tag pendiente">${dg.ptsMisiones} pts</span>
+      </div>
+      ${dg.detalleMisiones.length
+        ? dg.detalleMisiones.map(m => `
+            <div class="dash-row">
+              <div>
+                <b>${esc(m.icono)} ${esc(m.titulo)}</b>
+                <div class="mute" style="font-size:.82rem">${esc(m.insignia)}</div>
+              </div>
+              <b style="color:var(--purple);white-space:nowrap">+${m.puntos} pts</b>
+            </div>
+          `).join('')
+        : `<div class="mute">Aún no has sumado puntos por misiones validadas. <button type="button" class="sec" style="padding:4px 10px;font-size:.82rem;margin-left:4px" data-user-tab="misiones">Ver misiones</button></div>`
+      }
+      ${dg.atencionesAprobadas.length ? `
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+          <div class="row" style="margin-bottom:6px">
+            <h3 style="margin:0">🌟 Atenciones Increíbles (${dg.atencionesAprobadas.length})</h3>
+            <span class="tag aprobada">${dg.ptsAtenciones} pts</span>
+          </div>
+          ${dg.atencionesAprobadas.map(p => `
+            <div class="dash-row">
+              <span class="mute">Caso <b>${esc(p.numero_caso || 'sin número')}</b></span>
+              <b style="color:#c98a0b">+${Number(p.puntos)||PTS_INCREIBLE} pts</b>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
 function setUserTab(nextTab){
   userTab = nextTab;
   drawUser();
@@ -1046,9 +1249,11 @@ function drawUser(){
     return m.obligatoria && !m.completada && !vencida && m._est !== 'rechazada' && m._est !== 'pendiente';
   }).length;
   const insigniasGanadas = getInsigniasGanadasUsuario();
+  const dgUser = getDesglosePuntosUsuario(pts);
 
   const navUser = `<div class="tabs">
     <button type="button" data-user-tab="resultados" class="${userTab==='resultados'?'on':''}">📊 Resumen y Premios</button>
+    <button type="button" data-user-tab="dashboard" class="${userTab==='dashboard'?'on':''}">📈 Mi Dashboard</button>
     <button type="button" data-user-tab="dias" class="${userTab==='dias'?'on':''}">📅 Mi Día a Día (${cantDias})</button>
     <button type="button" data-user-tab="misiones" class="${userTab==='misiones'?'on':''}">🚀 Misiones e Insignias (${misionesVisibles.length}${obligPendientes?` · 🔒${obligPendientes}`:''})</button>
     <button type="button" data-user-tab="negativos" class="${userTab==='negativos'?'on':''}">⚠️ Mal comportamiento</button>
@@ -1074,7 +1279,9 @@ function drawUser(){
   </div>`;
 
   let cuerpoUser = '';
-  if(userTab === 'dias'){
+  if(userTab === 'dashboard'){
+    cuerpoUser = dashboardUsuarioView(pts);
+  }else if(userTab === 'dias'){
     cuerpoUser = `<div class="card">
       <div class="row">
         <div>
@@ -1110,6 +1317,15 @@ function drawUser(){
     </aside>
     <section>
     ${compet(rkActivo,iAct,pts)}
+    <div class="card" style="border-left:5px solid var(--purple)">
+      <div class="row">
+        <div>
+          <b>📈 Resumen rápido de tus puntos</b>
+          <div class="mute" style="margin-top:3px">📊 Indicadores: <b>${dgUser.ptsIndicadores} pts</b> · 🚀 Misiones: <b>${dgUser.ptsMisiones} pts</b> · 🌟 Atenciones: <b>${dgUser.ptsAtenciones} pts</b></div>
+        </div>
+        <button type="button" class="sec" data-user-tab="dashboard">Abrir Dashboard</button>
+      </div>
+    </div>
     ${mision()}
     ${bloqueInsignias}
     <h2 class="shd">✨ Premios a conseguir <span class="tag">${incentivosList.length}</span></h2>
@@ -1896,7 +2112,7 @@ function campanaAdminHtml(){
   </div>`;
 }
 
-const T={pos:'Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
+const T={pos:'Dashboard / Posiciones',post:'Postulaciones',mis:'Misiones e Insignias',neg:'Conducta / Negativos',dia:'Cargar día',per:'Personas',ind:'Indicadores',inc:'Incentivos'};
 function drawAdmin(){
   const rkAll = (D && D.ranking) ? D.ranking : [];
   const rkFiltrado = adminFiltroEq==='global'
@@ -2281,7 +2497,7 @@ function avisoFecha(){
   const a=$('#aw');if(!a||!F)return;const d=F.fechas.find(x=>x.fecha===$('#fe').value);
   a.textContent=d?`⚠ ${fdl(d.fecha)} ya tiene ${d.registros} registros cargados. Si guardas, se reemplazan los resultados de esa fecha.`:'';
 }
-const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
+const PAL=['#0e8f83','#4a7fd1','#8a63c9','#d6543f','#2aa6c9','#7aa63a'],GOLD='#e0a526',MIS_COL='#7c4dff',PRI=['csat','leads','nps','acuracidad ea','acuracidad pqc'];
 const corto=n=>String(n||'').split(' ').slice(0,2).join(' ');
 function posView(){
   if(!G||!G.personas||!G.personas.length)return '<p class="mute">No se pudo cargar el detalle de posiciones.</p>';
@@ -2295,18 +2511,56 @@ function posView(){
   if(!selP||!P.find(p=>p.cedula===selP))selP=P[0].cedula;
   const perfect=ind.reduce((a,x)=>a+x.puntos,0);
 
+  let totIndEquipo=0, totMisEquipo=0, totIncEquipo=0, totPtsEquipo=0;
+  P.forEach(per => {
+    const pInd = ord.reduce((acc, k) => acc + ip(per, k), 0);
+    const misInfo = getMisionesUsuarioPorNombre(per.nombre, per.cedula);
+    const pMis = per.pts_misiones != null ? Number(per.pts_misiones) : misInfo.puntos;
+    const pInc = Number(per.pts_post) || 0;
+    totIndEquipo += pInd;
+    totMisEquipo += pMis;
+    totIncEquipo += pInc;
+    totPtsEquipo += Number(per.puntos) || (pInd + pMis + pInc);
+  });
+
   const filtroBar = `<div class="row" style="margin-bottom:12px">
-    <h2 style="margin:0">¿Por qué cada persona está en su puesto?</h2>
+    <h2 style="margin:0">📊 Dashboard de Origen de Puntos y Posiciones</h2>
     <div class="seg-switch" style="margin:0">
       <button type="button" class="${adminFiltroEq==='global'?'on':''}" onclick="adminFiltroEq='global';drawAdmin()">Global</button>
       <button type="button" class="${adminFiltroEq==='tradicional'?'on':''}" onclick="adminFiltroEq='tradicional';drawAdmin()">Tradicional</button>
       <button type="button" class="${adminFiltroEq==='social'?'on':''}" onclick="adminFiltroEq='social';drawAdmin()">Social</button>
     </div>
+  </div>
+  <div class="dash-kpis">
+    <div class="kpi-card k-ind">
+      <div class="k-lbl">📊 Puntos por Indicadores</div>
+      <div class="k-val" style="color:var(--teal)">${totIndEquipo} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${totPtsEquipo?Math.round(totIndEquipo/totPtsEquipo*100):0}% del total · ${P.length} integrantes</div>
+    </div>
+    <div class="kpi-card k-mis">
+      <div class="k-lbl">🚀 Puntos por Misiones</div>
+      <div class="k-val" style="color:var(--purple)">${totMisEquipo} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${totPtsEquipo?Math.round(totMisEquipo/totPtsEquipo*100):0}% del total en misiones validadas</div>
+    </div>
+    <div class="kpi-card k-inc">
+      <div class="k-lbl">🌟 Atenciones Increíbles</div>
+      <div class="k-val" style="color:#c98a0b">${totIncEquipo} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">${totPtsEquipo?Math.round(totIncEquipo/totPtsEquipo*100):0}% del total en casos aprobados</div>
+    </div>
+    <div class="kpi-card k-tot">
+      <div class="k-lbl">🏆 Puntaje Total (${adminFiltroEq==='global'?'Operación':adminFiltroEq.toUpperCase()})</div>
+      <div class="k-val">${totPtsEquipo} <small style="font-size:1rem">pts</small></div>
+      <div class="k-sub">Mes: ${esc(G.mes)} · ${nf} días con registro</div>
+    </div>
   </div>`;
 
-  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Atenciones increíbles</b><span class="mute">Cada postulación aprobada suma ${PTS_INCREIBLE} pts directos al ranking del mes.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
-  const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
-  const bars=P.map((p,j)=>`<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`).join('');
+  const ex=`<div class="exp"><div><b>1 · Puntos por indicador</b><span class="mute">Cada día que cumple un indicador suma sus puntos: ${ord.map(k=>esc(ind[k].nombre)+' '+ind[k].puntos).join(' · ')}. Un día perfecto vale ${perfect} pts.</span></div><div><b>2 · Misiones y Atenciones</b><span class="mute">Las misiones validadas suman los puntos configurados en cada reto; las atenciones increíbles aprobadas suman ${PTS_INCREIBLE} pts.</span></div><div><b>3 · Orden del ranking</b><span class="mute">De mayor a menor puntaje del mes (${esc(G.mes)}). En empate se ordena por nombre. Días con datos: ${nf}.</span></div></div>`;
+  const leg=`<div class="leg">${ord.map(k=>`<span><i style="background:${col(k)}"></i>${esc(ind[k].nombre)}</span>`).join('')}<span><i style="background:${MIS_COL}"></i>Misiones</span><span><i style="background:${GOLD}"></i>Atenciones increíbles</span></div>`;
+  const bars=P.map((p,j)=>{
+    const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
+    const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
+    return `<div class="sb"><span class="sn">${j+1}. ${esc(corto(p.nombre))}</span><div class="st" role="img" aria-label="${esc(p.nombre)}: ${p.puntos} puntos">${ord.map(k=>{const v=ip(p,k);return v?`<i style="width:${v/mx*100}%;background:${col(k)}" title="${esc(ind[k].nombre)}: ${v} pts"></i>`:''}).join('')}${pMis?`<i style="width:${pMis/mx*100}%;background:${MIS_COL}" title="Misiones: ${pMis} pts"></i>`:''}${p.pts_post?`<i style="width:${p.pts_post/mx*100}%;background:${GOLD}" title="Atenciones increíbles: ${p.pts_post} pts"></i>`:''}</div><b>${p.puntos}</b></div>`;
+  }).join('');
   const motivo=j=>{const p=P[j];
     const fz=ord.filter(k=>p.por_indicador[k].dias_total>0).map(k=>({n:ind[k].nombre,r:p.por_indicador[k].dias_ok/p.por_indicador[k].dias_total,o:p.por_indicador[k].dias_ok,t:p.por_indicador[k].dias_total}));
     let a='';if(fz.length){const mj=fz.reduce((x,y)=>y.r>x.r?y:x),pe=fz.reduce((x,y)=>y.r<x.r?y:x);a=` Más fuerte: ${esc(mj.n)} (${mj.o}/${mj.t} días). ${pe.r<1&&pe!==mj?`A reforzar: ${esc(pe.n)} (${pe.o}/${pe.t}).`:''}`}
@@ -2315,25 +2569,37 @@ function posView(){
     if(!dif)return `Empatado en ${p.puntos} pts con ${esc(corto(u.nombre))}; el desempate es por nombre.${a}`;
     const cs=[...ord.map(k=>({n:ind[k].nombre,d:ip(u,k)-ip(p,k)})),{n:'Atenciones increíbles',d:u.pts_post-p.pts_post}].filter(x=>x.d>0).sort((x,y)=>y.d-x.d).slice(0,2);
     return `A ${dif} pts del puesto ${j}.${cs.length?' Donde más se separa: '+cs.map(x=>`${esc(x.n)} (−${x.d} pts)`).join(' y ')+'.':''}${a}`;};
-  const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Pts</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días cumplidos</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
-   +P.map((p,j)=>`<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes} en revisión)</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${3+ord.length}">${motivo(j)}</td></tr>`).join('')+'</table></div>';
+  const tabla=`<div style="overflow-x:auto"><table class="pz"><tr><th>#</th><th>Persona</th><th>Total</th><th>Pts Indicadores</th><th>Pts Misiones</th>${ord.map(k=>`<th>${esc(ind[k].nombre)}<br><span style="font-weight:400">días</span></th>`).join('')}<th>Atenc. aprobadas</th></tr>`
+   +P.map((p,j)=>{
+     const pIndTot = ord.reduce((acc, k) => acc + ip(p, k), 0);
+     const misInfo = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
+     const pMis = p.pts_misiones != null ? Number(p.pts_misiones) : misInfo.puntos;
+     const cantMis = p.misiones_ok != null ? Number(p.misiones_ok) : misInfo.cantidad;
+     return `<tr><td class="n">${j+1}</td><td><b>${esc(p.nombre)}</b> ${equipoLabel(getEquipo(p.nombre, p.cedula))}</td><td class="n">${p.puntos}</td><td><b style="color:var(--teal)">${pIndTot} pts</b></td><td><b style="color:var(--purple)">${pMis} pts</b><br><span class="mute">${cantMis} ${cantMis===1?'misión':'misiones'}</span></td>${ord.map(k=>{const x=p.por_indicador[k];return `<td>${x.dias_ok}/${x.dias_total}<br><span class="mute">${ip(p,k)} pts</span></td>`}).join('')}<td>${p.aprobadas}${p.pendientes?` <span class="mute">(+${p.pendientes})</span>`:''}<br><span class="mute">${p.pts_post} pts</span></td></tr><tr class="mv"><td></td><td colspan="${5+ord.length}">${motivo(j)}</td></tr>`;
+   }).join('')+'</table></div>';
   const heat=nf?`<div style="overflow-x:auto"><table class="hm"><tr><th></th>${G.fechas.map(f=>`<th>${f.slice(8)}/${f.slice(5,7)}</th>`).join('')}</tr>`
    +P.map((p,j)=>{const m={};p.dias.forEach(d=>m[d.fecha]=d);return `<tr><td class="nm">${j+1}. ${esc(corto(p.nombre))}</td>${G.fechas.map(f=>{const d=m[f];return d?`<td style="background:rgba(14,143,131,${(0.12+0.88*d.ok/d.total).toFixed(2)});${d.ok===d.total?'outline:2px solid '+GOLD+';':''}" title="${esc(p.nombre)} · ${f}: ${d.ok} de ${d.total} · ${d.pts} pts">${d.ok}</td>`:'<td style="background:var(--line)" title="Sin registros">·</td>'}).join('')}</tr>`}).join('')+'</table></div><p class="mute" style="margin:8px 0 0">Número = indicadores cumplidos ese día. Más oscuro = más cumplimiento. Borde dorado = día perfecto. Gris = sin registros.</p>':'<p class="mute">Aún no hay días cargados este mes.</p>';
   const p=P.find(x=>x.cedula===selP),pos=P.indexOf(p)+1,dm={};p.dias.forEach(d=>dm[d.fecha]=d);
-  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post);
+  const pIndInd = ord.reduce((acc, k) => acc + ip(p, k), 0);
+  const misInfoInd = getMisionesUsuarioPorNombre(p.nombre, p.cedula);
+  const pMisInd = p.pts_misiones != null ? Number(p.pts_misiones) : misInfoInd.puntos;
+  const cantMisInd = p.misiones_ok != null ? Number(p.misiones_ok) : misInfoInd.cantidad;
+
+  const W=620,Hh=170,bw=Math.max(4,Math.min(26,(W-40)/Math.max(1,nf)-3)),stp=(W-40)/Math.max(1,nf);let acc=0;const tot=Math.max(1,p.puntos-p.pts_post-pMisInd);
   const sv=G.fechas.map((f,i)=>{const d=dm[f],x=30+i*stp,h=d?d.pts/Math.max(1,perfect)*(Hh-40):0;return `<rect x="${x}" y="${Hh-20-h}" width="${bw}" height="${Math.max(h,d?2:0)}" rx="2" fill="${d&&d.ok===d.total?GOLD:'#0e8f83'}"><title>${f}: ${d?d.pts+' pts · '+d.ok+' de '+d.total:'sin registros'}</title></rect><text x="${x+bw/2}" y="${Hh-6}" font-size="8" text-anchor="middle" fill="currentColor" opacity=".6">${f.slice(8)}</text>`}).join('');
   const pts=G.fechas.map((f,i)=>{acc+=dm[f]?dm[f].pts:0;return `${(30+i*stp+bw/2).toFixed(1)},${(Hh-20-acc/tot*(Hh-40)).toFixed(1)}`}).join(' ');
   const dd=p.dias,perf=dd.filter(d=>d.ok===d.total).length,mejor=dd.reduce((a,d)=>Math.max(a,d.pts),0),okT=dd.reduce((a,d)=>a+d.ok,0),tT=dd.reduce((a,d)=>a+d.total,0);
   const det=`<div class="row row2" style="max-width:420px"><label for="sel-persona-det">Persona</label><select id="sel-persona-det" onchange="selP=this.value;drawAdmin()">${P.map((x,j)=>`<option value="${x.cedula}" ${x.cedula===selP?'selected':''}>${j+1}. ${esc(x.nombre)}</option>`).join('')}</select></div>
-   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos}</b>Puntos del mes</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
+   <div class="dt"><div><b>${pos} de ${P.length}</b>Puesto actual</div><div><b>${p.puntos} pts</b>Total · Ind: ${pIndInd} · Mis: ${pMisInd}</div><div><b>${tT?Math.round(okT/tT*100):0}%</b>Indicadores cumplidos</div><div><b>${perf}</b>Días perfectos · mejor día ${mejor} pts</div></div>
    <p class="mute" style="margin:0 0 4px"><b style="color:var(--ink)">Cómo llegó a ${p.puntos} puntos</b></p>
    ${ord.map(k=>{const x=p.por_indicador[k],r=x.dias_total?x.dias_ok/x.dias_total*100:0;return `<div class="cmpb"><span>${esc(x.nombre)}</span><span class="tr"><i style="width:${r}%;background:${col(k)}"></i></span><span>${x.dias_ok} de ${x.dias_total} días × ${x.puntos} = <b>${ip(p,k)}</b></span></div>`}).join('')}
-   <div class="cmpb"><span>Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
+   <div class="cmpb"><span>🚀 Misiones</span><span class="tr"><i style="width:${pMisInd?100:0}%;background:${MIS_COL}"></i></span><span>${cantMisInd} ${cantMisInd===1?'misión validada':'misiones validadas'} = <b>${pMisInd} pts</b></span></div>
+   <div class="cmpb"><span>🌟 Atenciones increíbles</span><span class="tr"><i style="width:${p.aprobadas?100:0}%;background:${GOLD}"></i></span><span>${p.aprobadas} aprobadas × ${PTS_INCREIBLE} = <b>${p.pts_post}</b>${p.pendientes?` · ${p.pendientes} en revisión`:''}${p.con_feedback?` · ${p.con_feedback} con feedback`:''}</span></div>
    <p class="mute" style="margin:14px 0 4px"><b style="color:var(--ink)">Puntos por día</b> (barra dorada = día perfecto; línea = acumulado)</p>
    <svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Puntos por día y acumulado"><line x1="26" y1="${Hh-20}" x2="${W-6}" y2="${Hh-20}" stroke="var(--line)"/>${sv}${nf?`<polyline points="${pts}" fill="none" stroke="${'#d6543f'}" stroke-width="2"/>`:''}</svg>`;
   return `${filtroBar}${ex}
   <div class="card"><b>Cómo se compone el puntaje de cada persona</b>${leg}${bars}</div>
-  <div class="card"><b>Detalle y motivo por puesto</b><p class="mute" style="margin:2px 0 8px">Días cumplidos de los días con registro, y qué tanto se separa cada persona de quien tiene arriba.</p>${tabla}</div>
+  <div class="card"><b>Detalle por persona (Indicadores vs. Misiones)</b><p class="mute" style="margin:2px 0 8px">Comparativo directo de puntos por indicadores, puntos por misiones y atenciones increíbles.</p>${tabla}</div>
   <div class="card"><b>Mapa de cumplimiento por día</b><p class="mute" style="margin:2px 0 8px">Quién cumplió cuántos indicadores cada día del mes.</p>${heat}</div>
   <div class="card"><b>Análisis individual</b>${det}</div>`;
 }
