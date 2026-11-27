@@ -296,11 +296,54 @@ const EQUIPOS = {
   tradicional: ['andres reina', 'jefry betancur', 'nikol munoz', 'valentina delgado'],
   social: ['lorena cardenas', 'cristhian buenanos', 'diana melo', 'alexandra diaz', 'jerson ruiz', 'kenneth rodriguez', 'luisa cifuentes']
 };
-// Cedulas autorizadas como "creador de misiones" (si esta vacio, cualquier cedula con clave "mision" puede entrar)
-const CREADORES_MISIONES = [];
 
 let ASIGNACIONES_EQ = JSON.parse(localStorage.getItem('eq_map') || '{}');
+let CREADORES_CEDULAS = JSON.parse(localStorage.getItem('creadores_misiones_cedulas') || '[]').map(String);
 let PTS_INCREIBLE = +(localStorage.getItem('pts_increible') || 7);
+
+function esCreadorDesignado(ced){
+  const c = String(ced || '').trim();
+  return !!c && CREADORES_CEDULAS.includes(c);
+}
+
+function guardarCreadoresLocal(lista){
+  CREADORES_CEDULAS = Array.from(new Set((lista || []).map(x => String(x).trim()).filter(Boolean)));
+  localStorage.setItem('creadores_misiones_cedulas', JSON.stringify(CREADORES_CEDULAS));
+}
+
+async function alternarRolCreador(ced, nombre){
+  const c = String(ced || '').trim();
+  if(!c) return;
+  const yaEsCreador = esCreadorDesignado(c);
+  const nuevoEstado = !yaEsCreador;
+  const actualizada = nuevoEstado
+    ? [...CREADORES_CEDULAS, c]
+    : CREADORES_CEDULAS.filter(x => x !== c);
+
+  guardarCreadoresLocal(actualizada);
+  try{
+    await rpc('admin_set_creador_misiones', {
+      p_admin: S.clave,
+      p_ced: c,
+      p_es_creador: nuevoEstado
+    });
+  }catch(e){}
+
+  broadcastEvent('rol_creador_actualizado', {
+    cedula: c,
+    es_creador: nuevoEstado,
+    creadores: CREADORES_CEDULAS
+  });
+
+  notify(
+    nuevoEstado ? '📝 Rol asignado' : '👤 Rol actualizado',
+    nuevoEstado
+      ? `${nombre} (CC ${c}) ahora es Creador de misiones.`
+      : `${nombre} (CC ${c}) quedó solo como Usuario normal.`,
+    nuevoEstado ? 'success' : 'info'
+  );
+  drawAdmin();
+}
 
 function norm(s){
   return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
@@ -860,6 +903,21 @@ function setupRealtime(){
     config: { broadcast: { ack: false } }
   });
 
+  rtChannel.on('broadcast', { event: 'rol_creador_actualizado' }, ({ payload }) => {
+    if(!payload) return;
+    if(Array.isArray(payload.creadores)){
+      guardarCreadoresLocal(payload.creadores);
+    }else if(payload.cedula){
+      const c = String(payload.cedula);
+      guardarCreadoresLocal(payload.es_creador ? [...CREADORES_CEDULAS, c] : CREADORES_CEDULAS.filter(x => x !== c));
+    }
+    if(S && S.a){
+      drawAdmin();
+    }else if(S && !S.a && String(payload.cedula || '') === String(S.ced)){
+      out();
+    }
+  });
+
   rtChannel.on('broadcast', { event: 'mision_propuesta' }, ({ payload }) => {
     if(!payload || !payload.prop_id) return;
     const existe = MISIONES_PROPUESTAS.some(x => String(x.prop_id) === String(payload.prop_id));
@@ -1039,8 +1097,8 @@ function loginCreador(){
     login('Ingresa tu cédula para entrar como creador de misiones.');
     return;
   }
-  if(CREADORES_MISIONES.length && !CREADORES_MISIONES.map(String).includes(ced)){
-    login('Tu cédula no está habilitada para el perfil de creador de misiones.');
+  if(!esCreadorDesignado(ced)){
+    login('Esta cédula está configurada solo como usuario normal. El administrador debe asignarla como creadora de misiones.');
     return;
   }
   if(clave !== 'mision'){
@@ -2424,9 +2482,15 @@ function drawAdmin(){
   </div>`
     +usuariosList.map(u=>{
       const eqAct = getEquipo(u.nombre, u.cedula);
+      const esCreador = esCreadorDesignado(u.cedula);
       return `<div class="card row">
-        <div><b>${esc(u.nombre)}</b> ${equipoLabel(eqAct)} <span class="mute">${esc(u.cedula)}</span></div>
+        <div>
+          <b>${esc(u.nombre)}</b> ${equipoLabel(eqAct)}
+          ${esCreador ? '<span class="tag pendiente">Creador de misiones</span>' : '<span class="tag">Solo usuario normal</span>'}
+          <span class="mute">${esc(u.cedula)}</span>
+        </div>
         <div class="row" style="gap:6px">
+          <button type="button" class="${esCreador?'sec':'purp'}" onclick='alternarRolCreador(${jsArg(u.cedula)}, ${jsArg(u.nombre)})'>${esCreador?'Dejar solo como usuario':'Hacer creador de misiones'}</button>
           <button type="button" class="sec" onclick='editarPersona(${jsArg(u.cedula)}, ${jsArg(u.nombre)})'>Editar nombre</button>
           <label for="eq-${esc(u.cedula)}" class="mute" style="font-size:.8rem">Equipo</label>
           <select id="eq-${esc(u.cedula)}" style="width:auto;margin:0;padding:6px 10px">
@@ -3093,6 +3157,7 @@ async function lote(){
 
 Object.assign(window, {
   out, drawUser, drawAdmin, syncState, playTone, notify,
+  alternarRolCreador,
   setUserTab, setVistaRk, setVistaNeg,
   toggleSelectorAlgunosCreador, enviarPropuestaMision, resolverPropuestaMision,
   aceptarMision, omitirMision, marcarMisionCompletada, copiarImagenLogro,
